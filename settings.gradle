@@ -1,0 +1,2 @@
+rootProject.name='XP-WebRTC'
+include ':xpproject:android_webrtc_library', ':xpproject:android_webrtc_application'
