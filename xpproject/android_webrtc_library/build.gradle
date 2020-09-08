@@ -23,10 +23,10 @@ android {
     sourceSets {
         main {
             java {
-                srcDirs '../../modules/audio_device/android/java/src'
-                srcDirs '../../rtc_base/java/src'
-                srcDirs '../../sdk/andoird/api'
-                srcDirs '../../sdk/android/src/java'
+                srcDirs '../../modules/audio_device/android/java/src',
+                        '../../rtc_base/java/src',
+                        '../../sdk/android/api',
+                        '../../sdk/android/src/java'
             }
         }
     }
