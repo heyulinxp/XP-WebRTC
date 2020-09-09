@@ -76,6 +76,7 @@ bool VCMFrameBuffer::IsSessionComplete() const {
 }
 
 // Insert packet
+//插入packet
 VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
                                                 int64_t timeInMs,
                                                 const FrameData& frame_data) {

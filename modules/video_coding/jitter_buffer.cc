@@ -32,18 +32,22 @@ static const int64_t kDefaultRtt = 200;
 
 typedef std::pair<uint32_t, VCMFrameBuffer*> FrameListPair;
 
+//是否是关键帧
 bool IsKeyFrame(FrameListPair pair) {
   return pair.second->FrameType() == VideoFrameType::kVideoFrameKey;
 }
 
+//是否状态为空
 bool HasNonEmptyState(FrameListPair pair) {
   return pair.second->GetState() != kStateEmpty;
 }
 
+//在列表开始处添加帧
 void FrameList::InsertFrame(VCMFrameBuffer* frame) {
   insert(rbegin().base(), FrameListPair(frame->Timestamp(), frame));
 }
 
+//查找该时间戳的帧，并清空数据
 VCMFrameBuffer* FrameList::PopFrame(uint32_t timestamp) {
   FrameList::iterator it = find(timestamp);
   if (it == end())
@@ -61,6 +65,7 @@ VCMFrameBuffer* FrameList::Back() const {
   return rbegin()->second;
 }
 
+//清理帧，直到遇到关键帧。返回丢弃掉的帧数量。
 int FrameList::RecycleFramesUntilKeyFrame(FrameList::iterator* key_frame_it,
                                           UnorderedFrameList* free_frames) {
   int drop_count = 0;
@@ -69,6 +74,7 @@ int FrameList::RecycleFramesUntilKeyFrame(FrameList::iterator* key_frame_it,
     // Throw at least one frame.
     it->second->Reset();
     free_frames->push_back(it->second);
+    //erase函数：使用删除之前的迭代器定位下一个元素。STL建议的使用方式。
     erase(it++);
     ++drop_count;
     if (it != end() &&
@@ -81,8 +87,10 @@ int FrameList::RecycleFramesUntilKeyFrame(FrameList::iterator* key_frame_it,
   return drop_count;
 }
 
+//清理队列中所有旧的或者空的帧。
 void FrameList::CleanUpOldOrEmptyFrames(VCMDecodingState* decoding_state,
                                         UnorderedFrameList* free_frames) {
+  //如果列表非空，遍历所有的帧
   while (!empty()) {
     VCMFrameBuffer* oldest_frame = Front();
     bool remove_frame = false;
@@ -101,6 +109,7 @@ void FrameList::CleanUpOldOrEmptyFrames(VCMDecodingState* decoding_state,
   }
 }
 
+//重置队列中所有的帧，放回到freeframes中。
 void FrameList::Reset(UnorderedFrameList* free_frames) {
   while (!empty()) {
     begin()->second->Reset();
@@ -138,6 +147,7 @@ VCMJitterBuffer::VCMJitterBuffer(Clock* clock,
 
 VCMJitterBuffer::~VCMJitterBuffer() {
   Stop();
+  //清空所有列表
   for (UnorderedFrameList::iterator it = free_frames_.begin();
        it != free_frames_.end(); ++it) {
     delete *it;
@@ -213,6 +223,7 @@ int VCMJitterBuffer::num_duplicated_packets() const {
 
 // Returns immediately or a |max_wait_time_ms| ms event hang waiting for a
 // complete frame, |max_wait_time_ms| decided by caller.
+//获取下一帧可以decode的帧，最长等待时长max_wait_time_ms
 VCMEncodedFrame* VCMJitterBuffer::NextCompleteFrame(uint32_t max_wait_time_ms) {
   MutexLock lock(&mutex_);
   if (!running_) {
@@ -222,11 +233,13 @@ VCMEncodedFrame* VCMJitterBuffer::NextCompleteFrame(uint32_t max_wait_time_ms) {
 
   if (decodable_frames_.empty() ||
       decodable_frames_.Front()->GetState() != kStateComplete) {
+    //如果decodableframes为空，或者它第一帧不是complete状态，那么进行等待
     const int64_t end_wait_time_ms =
         clock_->TimeInMilliseconds() + max_wait_time_ms;
     int64_t wait_time_ms = max_wait_time_ms;
     while (wait_time_ms > 0) {
       mutex_.Unlock();
+	  //进行等待
       const EventTypeWrapper ret =
           frame_event_->Wait(static_cast<uint32_t>(wait_time_ms));
       mutex_.Lock();
@@ -239,6 +252,7 @@ VCMEncodedFrame* VCMJitterBuffer::NextCompleteFrame(uint32_t max_wait_time_ms) {
         CleanUpOldOrEmptyFrames();
         if (decodable_frames_.empty() ||
             decodable_frames_.Front()->GetState() != kStateComplete) {
+          //计算剩余等待时间
           wait_time_ms = end_wait_time_ms - clock_->TimeInMilliseconds();
         } else {
           break;
@@ -261,16 +275,20 @@ VCMEncodedFrame* VCMJitterBuffer::ExtractAndSetDecode(uint32_t timestamp) {
     return NULL;
   }
   // Extract the frame with the desired timestamp.
+  //先在decode里取一帧
   VCMFrameBuffer* frame = decodable_frames_.PopFrame(timestamp);
   bool continuous = true;
   if (!frame) {
+    //decodable中没有，在incomplete里拿
     frame = incomplete_frames_.PopFrame(timestamp);
     if (frame)
+      //incomplete中的frame要和last_decode_state中ContinuousFrame合成
       continuous = last_decoded_state_.ContinuousFrame(frame);
     else
       return NULL;
   }
   // Frame pulled out from jitter buffer, update the jitter estimate.
+  //nack数量大于0就要重传？
   const bool retransmitted = (frame->GetNackCount() > 0);
   if (retransmitted) {
     jitter_estimate_.FrameNacked();
@@ -280,9 +298,11 @@ VCMEncodedFrame* VCMJitterBuffer::ExtractAndSetDecode(uint32_t timestamp) {
       UpdateJitterEstimate(waiting_for_completion_, true);
     }
     if (frame->GetState() == kStateComplete) {
+      //这一帧完整了
       UpdateJitterEstimate(*frame, false);
     } else {
       // Wait for this one to get complete.
+      //这一帧不完整
       waiting_for_completion_.frame_size = frame->size();
       waiting_for_completion_.latest_packet_time = frame->LatestPacketTimeMs();
       waiting_for_completion_.timestamp = frame->Timestamp();
@@ -292,6 +312,7 @@ VCMEncodedFrame* VCMJitterBuffer::ExtractAndSetDecode(uint32_t timestamp) {
   // The state must be changed to decoding before cleaning up zero sized
   // frames to avoid empty frames being cleaned up and then given to the
   // decoder. Propagates the missing_frame bit.
+  //通知解码器
   frame->PrepareForDecode(continuous);
 
   // We have a frame - update the last decoded state and nack list.
@@ -306,6 +327,7 @@ VCMEncodedFrame* VCMJitterBuffer::ExtractAndSetDecode(uint32_t timestamp) {
 
 // Release frame when done with decoding. Should never be used to release
 // frames from within the jitter buffer.
+//解码完后释放帧
 void VCMJitterBuffer::ReleaseFrame(VCMEncodedFrame* frame) {
   RTC_CHECK(frame != nullptr);
   MutexLock lock(&mutex_);
@@ -314,6 +336,7 @@ void VCMJitterBuffer::ReleaseFrame(VCMEncodedFrame* frame) {
 }
 
 // Gets frame to use for this timestamp. If no match, get empty frame.
+//根据packet里的包，找buffer
 VCMFrameBufferEnum VCMJitterBuffer::GetFrame(const VCMPacket& packet,
                                              VCMFrameBuffer** frame,
                                              FrameList** frame_list) {
@@ -334,10 +357,12 @@ VCMFrameBufferEnum VCMJitterBuffer::GetFrame(const VCMPacket& packet,
   if (*frame == NULL) {
     // No free frame! Try to reclaim some...
     RTC_LOG(LS_WARNING) << "Unable to get empty frame; Recycling.";
+	//找不到空间了，回收一下帧，直到碰到关键帧
     bool found_key_frame = RecycleFramesUntilKeyFrame();
     *frame = GetEmptyFrame();
     RTC_CHECK(*frame);
     if (!found_key_frame) {
+      //还是没空间，直接释放一帧好了
       RecycleFrameBuffer(*frame);
       return kFlushIndicator;
     }
@@ -346,22 +371,26 @@ VCMFrameBufferEnum VCMJitterBuffer::GetFrame(const VCMPacket& packet,
   return kNoError;
 }
 
+//最新的packet时间
 int64_t VCMJitterBuffer::LastPacketTime(const VCMEncodedFrame* frame,
                                         bool* retransmitted) const {
   assert(retransmitted);
   MutexLock lock(&mutex_);
   const VCMFrameBuffer* frame_buffer =
       static_cast<const VCMFrameBuffer*>(frame);
+  //Nack数大于0就重传了？
   *retransmitted = (frame_buffer->GetNackCount() > 0);
   return frame_buffer->LatestPacketTimeMs();
 }
 
+//插入packet
 VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
                                                  bool* retransmitted) {
   MutexLock lock(&mutex_);
 
   ++num_packets_;
   // Does this packet belong to an old frame?
+  //这个包是否属于一个旧的帧？
   if (last_decoded_state_.IsOldPacket(&packet)) {
     // Account only for media packets.
     if (packet.sizeBytes > 0) {
@@ -405,6 +434,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
 
   // Empty packets may bias the jitter estimate (lacking size component),
   // therefore don't let empty packet trigger the following updates:
+  //空白包不参与jitter estimate的估算
   if (packet.video_header.frame_type != VideoFrameType::kEmptyFrame) {
     if (waiting_for_completion_.timestamp == packet.timestamp) {
       // This can get bad if we have a lot of duplicate packets,
@@ -504,6 +534,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
   return buffer_state;
 }
 
+//判断该帧是否是完整的或者连续的
 bool VCMJitterBuffer::IsContinuousInState(
     const VCMFrameBuffer& frame,
     const VCMDecodingState& decoding_state) const {
@@ -532,6 +563,7 @@ bool VCMJitterBuffer::IsContinuous(const VCMFrameBuffer& frame) const {
   return false;
 }
 
+//找到并插入连续帧之间
 void VCMJitterBuffer::FindAndInsertContinuousFrames(
     const VCMFrameBuffer& new_frame) {
   VCMDecodingState decoding_state;
@@ -540,6 +572,7 @@ void VCMJitterBuffer::FindAndInsertContinuousFrames(
   FindAndInsertContinuousFramesWithState(decoding_state);
 }
 
+//找到并插入连续帧之间
 void VCMJitterBuffer::FindAndInsertContinuousFramesWithState(
     const VCMDecodingState& original_decoded_state) {
   // Copy original_decoded_state so we can move the state forward with each
@@ -571,12 +604,14 @@ void VCMJitterBuffer::FindAndInsertContinuousFramesWithState(
   }
 }
 
+//调用jitter_estimate的估计jitterMs的方法
 uint32_t VCMJitterBuffer::EstimatedJitterMs() {
   MutexLock lock(&mutex_);
   const double rtt_mult = 1.0f;
   return jitter_estimate_.GetJitterEstimate(rtt_mult, absl::nullopt);
 }
 
+//设置nack参数
 void VCMJitterBuffer::SetNackSettings(size_t max_nack_list_size,
                                       int max_packet_age_to_nack,
                                       int max_incomplete_time_ms) {
@@ -588,6 +623,7 @@ void VCMJitterBuffer::SetNackSettings(size_t max_nack_list_size,
   max_incomplete_time_ms_ = max_incomplete_time_ms;
 }
 
+//不连续或者不完整的帧时长
 int VCMJitterBuffer::NonContinuousOrIncompleteDuration() {
   if (incomplete_frames_.empty()) {
     return 0;
@@ -599,6 +635,7 @@ int VCMJitterBuffer::NonContinuousOrIncompleteDuration() {
   return incomplete_frames_.Back()->Timestamp() - start_timestamp;
 }
 
+//估计low sequence number
 uint16_t VCMJitterBuffer::EstimatedLowSequenceNumber(
     const VCMFrameBuffer& frame) const {
   assert(frame.GetLowSeqNum() >= 0);
@@ -610,6 +647,7 @@ uint16_t VCMJitterBuffer::EstimatedLowSequenceNumber(
   return frame.GetLowSeqNum() - 1;
 }
 
+//获取nack列表
 std::vector<uint16_t> VCMJitterBuffer::GetNackList(bool* request_key_frame) {
   MutexLock lock(&mutex_);
   *request_key_frame = false;
@@ -668,6 +706,7 @@ std::vector<uint16_t> VCMJitterBuffer::GetNackList(bool* request_key_frame) {
   return nack_list;
 }
 
+//下一帧，先从decodable中取，没有的话从incomplete中取，再没有的话返回NULL
 VCMFrameBuffer* VCMJitterBuffer::NextFrame() const {
   if (!decodable_frames_.empty())
     return decodable_frames_.Front();
@@ -676,6 +715,7 @@ VCMFrameBuffer* VCMJitterBuffer::NextFrame() const {
   return NULL;
 }
 
+//更新nack列表
 bool VCMJitterBuffer::UpdateNackList(uint16_t sequence_number) {
   // Make sure we don't add packets which are already too old to be decoded.
   if (!last_decoded_state_.in_initial_state()) {
@@ -705,13 +745,16 @@ bool VCMJitterBuffer::UpdateNackList(uint16_t sequence_number) {
   return true;
 }
 
+//判断是否nack列表过长
 bool VCMJitterBuffer::TooLargeNackList() const {
   return missing_sequence_numbers_.size() > max_nack_list_size_;
 }
 
+//处理过长的nack列表
 bool VCMJitterBuffer::HandleTooLargeNackList() {
   // Recycle frames until the NACK list is small enough. It is likely cheaper to
   // request a key frame than to retransmit this many missing packets.
+  //请求一个关键帧可能比重传这么多丢失的packet更好
   RTC_LOG_F(LS_WARNING) << "NACK list has grown too large: "
                         << missing_sequence_numbers_.size() << " > "
                         << max_nack_list_size_;
@@ -722,6 +765,7 @@ bool VCMJitterBuffer::HandleTooLargeNackList() {
   return key_frame_found;
 }
 
+//是否丢失太老的packet
 bool VCMJitterBuffer::MissingTooOldPacket(
     uint16_t latest_sequence_number) const {
   if (missing_sequence_numbers_.empty()) {
@@ -734,6 +778,7 @@ bool VCMJitterBuffer::MissingTooOldPacket(
   return age_of_oldest_missing_packet > max_packet_age_to_nack_;
 }
 
+//处理太老的packet
 bool VCMJitterBuffer::HandleTooOldPackets(uint16_t latest_sequence_number) {
   bool key_frame_found = false;
   const uint16_t age_of_oldest_missing_packet =
@@ -747,6 +792,7 @@ bool VCMJitterBuffer::HandleTooOldPackets(uint16_t latest_sequence_number) {
   return key_frame_found;
 }
 
+//根据序列号，从Nack列表中丢弃掉包
 void VCMJitterBuffer::DropPacketsFromNackList(
     uint16_t last_decoded_sequence_number) {
   // Erase all sequence numbers from the NACK list which we won't need any
@@ -756,6 +802,7 @@ void VCMJitterBuffer::DropPacketsFromNackList(
       missing_sequence_numbers_.upper_bound(last_decoded_sequence_number));
 }
 
+//获取空帧对象，如果没有空间了，需要尝试增大空间
 VCMFrameBuffer* VCMJitterBuffer::GetEmptyFrame() {
   if (free_frames_.empty()) {
     if (!TryToIncreaseJitterBufferSize()) {
@@ -767,6 +814,7 @@ VCMFrameBuffer* VCMJitterBuffer::GetEmptyFrame() {
   return frame;
 }
 
+//尝试增大空间，最大kMaxNumberOfFrames=300
 bool VCMJitterBuffer::TryToIncreaseJitterBufferSize() {
   if (max_number_of_frames_ >= kMaxNumberOfFrames)
     return false;
@@ -777,9 +825,11 @@ bool VCMJitterBuffer::TryToIncreaseJitterBufferSize() {
 
 // Recycle oldest frames up to a key frame, used if jitter buffer is completely
 // full.
+//释放帧空间，直到碰到关键帧
 bool VCMJitterBuffer::RecycleFramesUntilKeyFrame() {
   // First release incomplete frames, and only release decodable frames if there
   // are no incomplete ones.
+  //首先释放不完整的帧，然后只当没有不完整帧时才释放decodable的帧
   FrameList::iterator key_frame_it;
   bool key_frame_found = false;
   int dropped_frames = 0;
@@ -787,6 +837,7 @@ bool VCMJitterBuffer::RecycleFramesUntilKeyFrame() {
       &key_frame_it, &free_frames_);
   key_frame_found = key_frame_it != incomplete_frames_.end();
   if (dropped_frames == 0) {
+    //没有不完整帧时才释放decodable的帧
     dropped_frames += decodable_frames_.RecycleFramesUntilKeyFrame(
         &key_frame_it, &free_frames_);
     key_frame_found = key_frame_it != decodable_frames_.end();
@@ -806,6 +857,7 @@ bool VCMJitterBuffer::RecycleFramesUntilKeyFrame() {
   return key_frame_found;
 }
 
+//更新每一帧的平均packet数量
 void VCMJitterBuffer::UpdateAveragePacketsPerFrame(int current_number_packets) {
   if (frame_counter_ > kFastConvergeThreshold) {
     average_packets_per_frame_ =
@@ -823,6 +875,7 @@ void VCMJitterBuffer::UpdateAveragePacketsPerFrame(int current_number_packets) {
 }
 
 // Must be called under the critical section |mutex_|.
+//删除旧的或者空的帧
 void VCMJitterBuffer::CleanUpOldOrEmptyFrames() {
   decodable_frames_.CleanUpOldOrEmptyFrames(&last_decoded_state_,
                                             &free_frames_);
@@ -834,6 +887,7 @@ void VCMJitterBuffer::CleanUpOldOrEmptyFrames() {
 }
 
 // Must be called from within |mutex_|.
+//是否是重传的包？看序号是否是队列里的最后一个？
 bool VCMJitterBuffer::IsPacketRetransmitted(const VCMPacket& packet) const {
   return missing_sequence_numbers_.find(packet.seqNum) !=
          missing_sequence_numbers_.end();
@@ -868,6 +922,7 @@ void VCMJitterBuffer::UpdateJitterEstimate(const VCMFrameBuffer& frame,
 // Must be called under the critical section |mutex_|. Should never be
 // called with retransmitted frames, they must be filtered out before this
 // function is called.
+//卡尔曼滤波更新估计的卡顿时间jitter estimate
 void VCMJitterBuffer::UpdateJitterEstimate(int64_t latest_packet_time_ms,
                                            uint32_t timestamp,
                                            unsigned int frame_size,
@@ -885,6 +940,7 @@ void VCMJitterBuffer::UpdateJitterEstimate(int64_t latest_packet_time_ms,
   }
 }
 
+//释放一帧，放回freeframes
 void VCMJitterBuffer::RecycleFrameBuffer(VCMFrameBuffer* frame) {
   frame->Reset();
   free_frames_.push_back(frame);

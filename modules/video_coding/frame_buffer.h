@@ -26,6 +26,7 @@
 
 namespace webrtc {
 
+//VCMFrameBuffer继承于VCMEncodedFrame
 class VCMFrameBuffer : public VCMEncodedFrame {
  public:
   VCMFrameBuffer();

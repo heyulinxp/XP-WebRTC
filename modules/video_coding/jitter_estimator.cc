@@ -34,6 +34,7 @@ static constexpr int64_t kNackCountTimeoutMs = 60000;
 static constexpr double kDefaultMaxTimestampDeviationInSigmas = 3.5;
 }  // namespace
 
+//构造函数以及重要参数
 VCMJitterEstimator::VCMJitterEstimator(Clock* clock)
     : _phi(0.97),
       _psi(0.9999),

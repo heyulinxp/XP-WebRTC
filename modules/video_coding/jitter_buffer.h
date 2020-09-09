@@ -41,6 +41,7 @@ class VCMEncodedFrame;
 
 typedef std::list<VCMFrameBuffer*> UnorderedFrameList;
 
+//VCM抖动采样，时间戳/帧数量/最新包时间
 struct VCMJitterSample {
   VCMJitterSample() : timestamp(0), frame_size(0), latest_packet_time(-1) {}
   uint32_t timestamp;
@@ -48,6 +49,7 @@ struct VCMJitterSample {
   int64_t latest_packet_time;
 };
 
+//比较函数
 class TimestampLessThan {
  public:
   bool operator()(uint32_t timestamp1, uint32_t timestamp2) const {
@@ -55,6 +57,7 @@ class TimestampLessThan {
   }
 };
 
+//帧队列，map但是有序存储，类似于sortedMap
 class FrameList
     : public std::map<uint32_t, VCMFrameBuffer*, TimestampLessThan> {
  public:
@@ -69,6 +72,7 @@ class FrameList
   void Reset(UnorderedFrameList* free_frames);
 };
 
+//JitterBuffer
 class VCMJitterBuffer {
  public:
   VCMJitterBuffer(Clock* clock, std::unique_ptr<EventWrapper> event);
@@ -119,6 +123,7 @@ class VCMJitterBuffer {
   // Returns the estimated jitter in milliseconds.
   uint32_t EstimatedJitterMs();
 
+  //设置Nack列表相关的参数
   void SetNackSettings(size_t max_nack_list_size,
                        int max_packet_age_to_nack,
                        int max_incomplete_time_ms);
@@ -134,6 +139,7 @@ class VCMJitterBuffer {
       return IsNewerSequenceNumber(sequence_number2, sequence_number1);
     }
   };
+
   typedef std::set<uint16_t, SequenceNumberLessThan> SequenceNumberSet;
 
   // Gets the frame assigned to the timestamp of the packet. May recycle
@@ -150,38 +156,48 @@ class VCMJitterBuffer {
   bool IsContinuousInState(const VCMFrameBuffer& frame,
                            const VCMDecodingState& decoding_state) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   // Returns true if |frame| is continuous in the |last_decoded_state_|, taking
   // all decodable frames into account.
   bool IsContinuous(const VCMFrameBuffer& frame) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   // Looks for frames in |incomplete_frames_| which are continuous in the
   // provided |decoded_state|. Starts the search from the timestamp of
   // |decoded_state|.
   void FindAndInsertContinuousFramesWithState(
       const VCMDecodingState& decoded_state)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   // Looks for frames in |incomplete_frames_| which are continuous in
   // |last_decoded_state_| taking all decodable frames into account. Starts
   // the search from |new_frame|.
   void FindAndInsertContinuousFrames(const VCMFrameBuffer& new_frame)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   VCMFrameBuffer* NextFrame() const RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   // Returns true if the NACK list was updated to cover sequence numbers up to
   // |sequence_number|. If false a key frame is needed to get into a state where
   // we can continue decoding.
   bool UpdateNackList(uint16_t sequence_number)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   bool TooLargeNackList() const;
+  
   // Returns true if the NACK list was reduced without problem. If false a key
   // frame is needed to get into a state where we can continue decoding.
   bool HandleTooLargeNackList() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   bool MissingTooOldPacket(uint16_t latest_sequence_number) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   // Returns true if the too old packets was successfully removed from the NACK
   // list. If false, a key frame is needed to get into a state where we can
   // continue decoding.
   bool HandleTooOldPackets(uint16_t latest_sequence_number)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  
   // Drops all packets in the NACK list up until |last_decoded_sequence_number|.
   void DropPacketsFromNackList(uint16_t last_decoded_sequence_number);
 
@@ -233,9 +249,12 @@ class VCMJitterBuffer {
   std::unique_ptr<EventWrapper> frame_event_;
   // Number of allocated frames.
   int max_number_of_frames_;
+
+  //三个队列，freeframes，incompleteframes，decodableframes
   UnorderedFrameList free_frames_ RTC_GUARDED_BY(mutex_);
   FrameList decodable_frames_ RTC_GUARDED_BY(mutex_);
   FrameList incomplete_frames_ RTC_GUARDED_BY(mutex_);
+  
   VCMDecodingState last_decoded_state_ RTC_GUARDED_BY(mutex_);
   bool first_packet_since_reset_;
 

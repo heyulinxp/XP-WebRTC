@@ -148,3 +148,6 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# SourceInsight 4 Project
+*.si4project/
