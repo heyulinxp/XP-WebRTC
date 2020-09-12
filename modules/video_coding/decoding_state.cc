@@ -347,6 +347,7 @@ bool VCMDecodingState::HaveSpsAndPps(const std::vector<NaluInfo>& nalus) const {
     // Check if this nalu actually contains sps/pps information or dependencies.
     if (nalu.sps_id == -1 && nalu.pps_id == -1)
       continue;
+	//pps-sps保存成map，sps保存在set中
     switch (nalu.type) {
       case H264::NaluType::kPps:
         if (nalu.pps_id < 0) {

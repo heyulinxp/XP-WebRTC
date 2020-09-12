@@ -402,6 +402,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
   ++num_packets_;
   // Does this packet belong to an old frame?
   //这个包是否属于一个旧的帧？
+  //利用packet里的时间戳和last_decoded_state_里的时间戳去比
   if (last_decoded_state_.IsOldPacket(&packet)) {
     // Account only for media packets.
     //有数据时，num_consecutive_old_packets++，只统计media packets？
@@ -414,6 +415,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
     //这个packet来晚了
     //如果包延迟到达并且属于时间戳等于最后解码时间戳的帧，则更新最后解码序列号。
     last_decoded_state_.UpdateOldPacket(&packet);
+	//丢弃数据包，根据最新的seq_num
     DropPacketsFromNackList(last_decoded_state_.sequence_num());
 
     // Also see if this old packet made more incomplete frames continuous.
@@ -570,6 +572,7 @@ bool VCMJitterBuffer::IsContinuous(const VCMFrameBuffer& frame) const {
        it != decodable_frames_.end(); ++it) {
     VCMFrameBuffer* decodable_frame = it->second;
     if (IsNewerTimestamp(decodable_frame->Timestamp(), frame.Timestamp())) {
+      //时间比frame晚的decodable_frame就忽略了
       break;
     }
     decoding_state.SetState(decodable_frame);
@@ -594,6 +597,7 @@ void VCMJitterBuffer::FindAndInsertContinuousFramesWithState(
     const VCMDecodingState& original_decoded_state) {
   // Copy original_decoded_state so we can move the state forward with each
   // decodable frame we find.
+  //复制备份
   VCMDecodingState decoding_state;
   decoding_state.CopyFrom(original_decoded_state);
 
@@ -609,6 +613,7 @@ void VCMJitterBuffer::FindAndInsertContinuousFramesWithState(
     VCMFrameBuffer* frame = it->second;
     if (IsNewerTimestamp(original_decoded_state.time_stamp(),
                          frame->Timestamp())) {
+      //timestamp较小的continue跳过
       ++it;
       continue;
     }
