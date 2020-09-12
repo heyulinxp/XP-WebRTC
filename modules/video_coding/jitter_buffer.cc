@@ -42,7 +42,7 @@ bool HasNonEmptyState(FrameListPair pair) {
   return pair.second->GetState() != kStateEmpty;
 }
 
-//在列表开始处添加帧
+//在列表开始处添加帧。rbegin是末尾吧？？
 void FrameList::InsertFrame(VCMFrameBuffer* frame) {
   insert(rbegin().base(), FrameListPair(frame->Timestamp(), frame));
 }
@@ -65,16 +65,17 @@ VCMFrameBuffer* FrameList::Back() const {
   return rbegin()->second;
 }
 
-//清理帧，直到遇到关键帧。返回丢弃掉的帧数量。
+//清理帧，直到遇到关键帧，返回丢弃掉的帧数量
 int FrameList::RecycleFramesUntilKeyFrame(FrameList::iterator* key_frame_it,
                                           UnorderedFrameList* free_frames) {
   int drop_count = 0;
   FrameList::iterator it = begin();
   while (!empty()) {
     // Throw at least one frame.
+    //一定会丢弃第一帧，直到丢弃了一帧关键帧/或者列表空了为止
     it->second->Reset();
     free_frames->push_back(it->second);
-    //erase函数：使用删除之前的迭代器定位下一个元素。STL建议的使用方式。
+    //erase函数：使用删除之前的迭代器定位下一个元素，STL建议的使用方式
     erase(it++);
     ++drop_count;
     if (it != end() &&
@@ -101,6 +102,7 @@ void FrameList::CleanUpOldOrEmptyFrames(VCMDecodingState* decoding_state,
     } else {
       remove_frame = decoding_state->IsOldFrame(oldest_frame);
     }
+	//清空一帧，放入free_frames
     if (!remove_frame) {
       break;
     }
@@ -177,6 +179,7 @@ void VCMJitterBuffer::Start() {
   first_packet_since_reset_ = true;
   last_decoded_state_.Reset();
 
+  //清空两个列表，放入free_frames_
   decodable_frames_.Reset(&free_frames_);
   incomplete_frames_.Reset(&free_frames_);
 }
@@ -336,7 +339,13 @@ void VCMJitterBuffer::ReleaseFrame(VCMEncodedFrame* frame) {
 }
 
 // Gets frame to use for this timestamp. If no match, get empty frame.
-//根据packet里的包，找buffer
+//根据packet里的包，找buffer，返回找到的帧的状态VCMFrameBufferEnum
+//网上总结：
+//从decodable_frames_取出一帧用于解码
+//更新jitterestimate
+//当前帧状态更新
+//当前解码状态更新
+//丢掉nacklist无用的包
 VCMFrameBufferEnum VCMJitterBuffer::GetFrame(const VCMPacket& packet,
                                              VCMFrameBuffer** frame,
                                              FrameList** frame_list) {
@@ -353,7 +362,9 @@ VCMFrameBufferEnum VCMJitterBuffer::GetFrame(const VCMPacket& packet,
 
   *frame_list = NULL;
   // No match, return empty frame.
+  //获取空帧
   *frame = GetEmptyFrame();
+  //获取不到空帧
   if (*frame == NULL) {
     // No free frame! Try to reclaim some...
     RTC_LOG(LS_WARNING) << "Unable to get empty frame; Recycling.";
@@ -393,16 +404,20 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
   //这个包是否属于一个旧的帧？
   if (last_decoded_state_.IsOldPacket(&packet)) {
     // Account only for media packets.
+    //有数据时，num_consecutive_old_packets++，只统计media packets？
     if (packet.sizeBytes > 0) {
       num_consecutive_old_packets_++;
     }
     // Update last decoded sequence number if the packet arrived late and
     // belongs to a frame with a timestamp equal to the last decoded
     // timestamp.
+    //这个packet来晚了
+    //如果包延迟到达并且属于时间戳等于最后解码时间戳的帧，则更新最后解码序列号。
     last_decoded_state_.UpdateOldPacket(&packet);
     DropPacketsFromNackList(last_decoded_state_.sequence_num());
 
     // Also see if this old packet made more incomplete frames continuous.
+    //还要看看这个旧包是否使更多不完整的帧连续。
     FindAndInsertContinuousFramesWithState(last_decoded_state_);
 
     if (num_consecutive_old_packets_ > kMaxConsecutiveOldPackets) {
@@ -426,6 +441,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
   int64_t now_ms = clock_->TimeInMilliseconds();
   // We are keeping track of the first and latest seq numbers, and
   // the number of wraps to be able to calculate how many packets we expect.
+  //我们跟踪第一个和最新的序列号，以及packet的数量，以便能够计算出我们期望的数据包数量。
   if (first_packet_since_reset_) {
     // Now it's time to start estimating jitter
     // reset the delay estimate.
@@ -436,6 +452,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
   // therefore don't let empty packet trigger the following updates:
   //空白包不参与jitter estimate的估算
   if (packet.video_header.frame_type != VideoFrameType::kEmptyFrame) {
+  	//packet非空，处理timestamp相等的和相差在2s以内的情况
     if (waiting_for_completion_.timestamp == packet.timestamp) {
       // This can get bad if we have a lot of duplicate packets,
       // we will then count some packet multiple times.
@@ -584,6 +601,9 @@ void VCMJitterBuffer::FindAndInsertContinuousFramesWithState(
   // frame until we hit one of the following:
   // 1. Continuous base or sync layer.
   // 2. The end of the list was reached.
+  //当时间层可用时，我们会搜索一个完整的或可解码的帧，直到找到以下其中一个：
+  //1. 连续基本层或同步层。
+  //2. 已到达列表的末尾。
   for (FrameList::iterator it = incomplete_frames_.begin();
        it != incomplete_frames_.end();) {
     VCMFrameBuffer* frame = it->second;
@@ -593,6 +613,7 @@ void VCMJitterBuffer::FindAndInsertContinuousFramesWithState(
       continue;
     }
     if (IsContinuousInState(*frame, decoding_state)) {
+      //可以解码了
       decodable_frames_.InsertFrame(frame);
       incomplete_frames_.erase(it++);
       decoding_state.SetState(frame);

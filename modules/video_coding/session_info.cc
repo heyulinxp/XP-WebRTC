@@ -45,6 +45,7 @@ VCMSessionInfo::VCMSessionInfo()
 
 VCMSessionInfo::~VCMSessionInfo() {}
 
+//指针转移，从旧的起点old_base_ptr转移到新的起点new_base_ptr
 void VCMSessionInfo::UpdateDataPointers(const uint8_t* old_base_ptr,
                                         const uint8_t* new_base_ptr) {
   for (PacketIterator it = packets_.begin(); it != packets_.end(); ++it)
@@ -68,6 +69,7 @@ int VCMSessionInfo::HighSequenceNumber() const {
   return LatestSequenceNumber(packets_.back().seqNum, empty_seq_num_high_);
 }
 
+//获取pictureId，区分VP8和VP9
 int VCMSessionInfo::PictureId() const {
   if (packets_.empty())
     return kNoPictureId;
@@ -84,6 +86,7 @@ int VCMSessionInfo::PictureId() const {
   }
 }
 
+//获取temporalId，区分VP8和VP9
 int VCMSessionInfo::TemporalId() const {
   if (packets_.empty())
     return kNoTemporalIdx;
@@ -100,6 +103,7 @@ int VCMSessionInfo::TemporalId() const {
   }
 }
 
+//获取layerSync状态，区分VP8和VP9
 bool VCMSessionInfo::LayerSync() const {
   if (packets_.empty())
     return false;
@@ -116,6 +120,7 @@ bool VCMSessionInfo::LayerSync() const {
   }
 }
 
+//获取tl0PicId，区分VP8和VP9
 int VCMSessionInfo::Tl0PicId() const {
   if (packets_.empty())
     return kNoTl0PicIdx;
@@ -174,6 +179,7 @@ void VCMSessionInfo::Reset() {
   last_packet_seq_num_ = -1;
 }
 
+//统计所有packet的sizeBytes之和
 size_t VCMSessionInfo::SessionLength() const {
   size_t length = 0;
   for (PacketIteratorConst it = packets_.begin(); it != packets_.end(); ++it)
@@ -271,6 +277,7 @@ void VCMSessionInfo::ShiftSubsequentPackets(PacketIterator it,
   memmove(first_packet_ptr + steps_to_shift, first_packet_ptr, shift_length);
 }
 
+//判断是否是完整的session，然后更新内部变量complete_
 void VCMSessionInfo::UpdateCompleteSession() {
   if (HaveFirstPacket() && HaveLastPacket()) {
     // Do we have all the packets in this session?
@@ -316,6 +323,7 @@ VCMSessionInfo::PacketIterator VCMSessionInfo::FindNaluEnd(
   return --packet_it;
 }
 
+//统计要删除的packet数量
 size_t VCMSessionInfo::DeletePacketData(PacketIterator start,
                                         PacketIterator end) {
   size_t bytes_to_delete = 0;  // The number of bytes to delete.
@@ -372,6 +380,7 @@ VCMSessionInfo::PacketIterator VCMSessionInfo::FindPartitionEnd(
   return prev_it;
 }
 
+//如果两个迭代器指向同一个包，则认为它们是按顺序排列的
 bool VCMSessionInfo::InSequence(const PacketIterator& packet_it,
                                 const PacketIterator& prev_packet_it) {
   // If the two iterators are pointing to the same packet they are considered
@@ -381,6 +390,11 @@ bool VCMSessionInfo::InSequence(const PacketIterator& packet_it,
            (*packet_it).seqNum));
 }
 
+// Makes the frame decodable. I.e., only contain decodable NALUs. All
+// non-decodable NALUs will be deleted and packets will be moved to in
+// memory to remove any empty space.
+// Returns the number of bytes deleted from the session.
+//返回值是删除的bytes数量
 size_t VCMSessionInfo::MakeDecodable() {
   size_t return_length = 0;
   if (packets_.empty()) {
@@ -417,6 +431,7 @@ bool VCMSessionInfo::HaveLastPacket() const {
   return !packets_.empty() && (last_packet_seq_num_ != -1);
 }
 
+//插入新的packet包
 int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
                                  uint8_t* frame_buffer,
                                  const FrameData& frame_data) {
@@ -449,11 +464,13 @@ int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
     if (packet.is_first_packet_in_frame() &&
         (first_packet_seq_num_ == -1 ||
          IsNewerSequenceNumber(first_packet_seq_num_, packet.seqNum))) {
+      //如果first_packet_seq_num_比packet.seqNum大，说明first_packet_seq_num_不对，要设成小的packet.seqNum
       first_packet_seq_num_ = packet.seqNum;
     }
     if (packet.markerBit &&
         (last_packet_seq_num_ == -1 ||
          IsNewerSequenceNumber(packet.seqNum, last_packet_seq_num_))) {
+      //如果last_packet_seq_num_比packet.seqNum小，说明last_packet_seq_num_不对，要设成大的packet.seqNum
       last_packet_seq_num_ = packet.seqNum;
     }
   } else {
@@ -501,6 +518,7 @@ int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
   return static_cast<int>(returnLength);
 }
 
+//更新两个seq_num来通知可能的空packet区间
 void VCMSessionInfo::InformOfEmptyPacket(uint16_t seq_num) {
   // Empty packets may be FEC or filler packets. They are sequential and
   // follow the data packets, therefore, we should only keep track of the high

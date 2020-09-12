@@ -71,6 +71,7 @@ FrameBuffer::~FrameBuffer() {
   RTC_DCHECK_RUN_ON(&construction_checker_);
 }
 
+//最长等待max_wait_time_ms时间，取出下一帧用于解码
 void FrameBuffer::NextFrame(
     int64_t max_wait_time_ms,
     bool keyframe_required,

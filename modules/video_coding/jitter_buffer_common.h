@@ -14,7 +14,9 @@
 namespace webrtc {
 
 // Used to estimate rolling average of packets per frame.
+//快速收敛因子
 static const float kFastConvergeMultiplier = 0.4f;
+//普通速度收敛因子
 static const float kNormalConvergeMultiplier = 0.2f;
 
 enum { kMaxNumberOfFrames = 300 };

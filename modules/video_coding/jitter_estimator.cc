@@ -286,6 +286,7 @@ void VCMJitterEstimator::KalmanEstimateChannel(int64_t frameDelayMS,
 
 // Calculate difference in delay between a sample and the expected delay
 // estimated by the Kalman filter
+//一步预测与观测值之间的差
 double VCMJitterEstimator::DeviationFromExpectedDelay(
     int64_t frameDelayMS,
     int32_t deltaFSBytes) const {

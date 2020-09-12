@@ -18,6 +18,7 @@ namespace webrtc {
 
 // Counts number of uniquly seen frames (aka pictures, aka temporal units)
 // identified by their rtp timestamp.
+//统计由其rtp时间戳标识的唯一可见帧（也称为图片，也称为时间单位）的数量
 class UniqueTimestampCounter {
  public:
   UniqueTimestampCounter();

@@ -35,10 +35,12 @@ class VCMTiming {
   void Reset();
 
   // Set the amount of time needed to render an image. Defaults to 10 ms.
+  //设置渲染图像所需的时间
   void set_render_delay(int render_delay_ms);
 
   // Set the minimum time the video must be delayed on the receiver to
   // get the desired jitter buffer level.
+  //设置视频必须在接收器上延迟的最短时间，以获得所需的抖动缓冲级别
   void SetJitterDelay(int required_delay_ms);
 
   // Set/get the minimum playout delay from capture to render in ms.
@@ -52,12 +54,16 @@ class VCMTiming {
   // Increases or decreases the current delay to get closer to the target delay.
   // Calculates how long it has been since the previous call to this function,
   // and increases/decreases the delay in proportion to the time difference.
+  //增加或减少当前延迟以接近目标延迟。
+  //计算自上次调用此函数以来的时间，并按时间差的比例增加/减少延迟。
   void UpdateCurrentDelay(uint32_t frame_timestamp);
 
   // Increases or decreases the current delay to get closer to the target delay.
   // Given the actual decode time in ms and the render time in ms for a frame,
   // this function calculates how late the frame is and increases the delay
   // accordingly.
+  //增加或减少当前延迟以接近目标延迟。
+  //给定帧的实际解码时间（毫秒）和渲染时间（毫秒），此函数计算帧的延迟时间，并相应地增加延迟。
   void UpdateCurrentDelay(int64_t render_time_ms,
                           int64_t actual_decode_time_ms);
 
@@ -73,6 +79,7 @@ class VCMTiming {
 
   // Used to report that a frame is passed to decoding. Updates the timestamp
   // filter which is used to map between timestamps and receiver system time.
+  //用于报告帧被传递到解码。更新用于在时间戳和接收器系统时间之间映射的时间戳筛选器。
   void IncomingTimestamp(uint32_t time_stamp, int64_t last_packet_time_ms);
 
   // Returns the receiver system time when the frame with timestamp
@@ -82,6 +89,7 @@ class VCMTiming {
 
   // Returns the maximum time in ms that we can wait for a frame to become
   // complete before we must pass it to the decoder.
+  //返回在必须将帧传递给解码器之前，我们可以等待帧完成的最长时间（毫秒）。
   virtual int64_t MaxWaitingTime(int64_t render_time_ms, int64_t now_ms) const;
 
   // Returns the current target delay which is required delay + decode time +

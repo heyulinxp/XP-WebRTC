@@ -53,6 +53,7 @@ VCMReceiver::~VCMReceiver() {
   render_wait_event_->Set();
 }
 
+//往jitterbuffer里添加packet
 int32_t VCMReceiver::InsertPacket(const VCMPacket& packet) {
   // Insert the packet into the jitter buffer. The packet can either be empty or
   // contain media at this point.
@@ -75,6 +76,7 @@ int32_t VCMReceiver::InsertPacket(const VCMPacket& packet) {
   return VCM_OK;
 }
 
+//最长等待max_wait_time_ms，从jitterbuffer里取一帧出来用作解码
 VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
                                                bool prefer_late_decoding) {
   const int64_t start_time_ms = clock_->TimeInMilliseconds();

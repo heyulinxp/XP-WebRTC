@@ -102,6 +102,7 @@ bool VCMDecoderDataBase::DeregisterReceiveCodec(uint8_t payload_type) {
   return true;
 }
 
+//外部调用，获取decoder
 VCMGenericDecoder* VCMDecoderDataBase::GetDecoder(
     const VCMEncodedFrame& frame,
     VCMDecodedFrameCallback* decoded_frame_callback) {
@@ -167,6 +168,8 @@ std::unique_ptr<VCMGenericDecoder> VCMDecoderDataBase::CreateAndInitDecoder(
   // the first frame being of a different resolution than the database values.
   // This is best effort, since there's no guarantee that width/height have been
   // parsed yet (and may be zero).
+  //复制输入分辨率以防止由于第一帧的分辨率与数据库值不同而重新初始化编解码器。
+  //这是最大的努力，因为不能保证宽度/高度已经被解析（可能是零）。
   if (frame.EncodedImage()._encodedWidth > 0 &&
       frame.EncodedImage()._encodedHeight > 0) {
     decoder_item->settings->width = frame.EncodedImage()._encodedWidth;
@@ -182,6 +185,7 @@ std::unique_ptr<VCMGenericDecoder> VCMDecoderDataBase::CreateAndInitDecoder(
   return ptr_decoder;
 }
 
+//从dec_map_中找VCMDecoderMapItem
 const VCMDecoderMapItem* VCMDecoderDataBase::FindDecoderItem(
     uint8_t payload_type) const {
   DecoderMap::const_iterator it = dec_map_.find(payload_type);
@@ -191,6 +195,7 @@ const VCMDecoderMapItem* VCMDecoderDataBase::FindDecoderItem(
   return nullptr;
 }
 
+//从dec_external_map_中找VCMExtDecoderMapItem
 const VCMExtDecoderMapItem* VCMDecoderDataBase::FindExternalDecoderItem(
     uint8_t payload_type) const {
   ExternalDecoderMap::const_iterator it = dec_external_map_.find(payload_type);

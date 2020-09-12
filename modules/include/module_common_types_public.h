@@ -96,6 +96,7 @@ inline bool IsNewerTimestamp(uint32_t timestamp, uint32_t prev_timestamp) {
   return IsNewer(timestamp, prev_timestamp);
 }
 
+//类似于Math.max
 inline uint16_t LatestSequenceNumber(uint16_t sequence_number1,
                                      uint16_t sequence_number2) {
   return IsNewerSequenceNumber(sequence_number1, sequence_number2)

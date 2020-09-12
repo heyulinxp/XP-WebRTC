@@ -39,10 +39,12 @@ class H264SpsPpsTracker {
   FixedBitstream CopyAndFixBitstream(rtc::ArrayView<const uint8_t> bitstream,
                                      RTPVideoHeader* video_header);
 
+  //插入sps和pps的nalus消息
   void InsertSpsPpsNalus(const std::vector<uint8_t>& sps,
                          const std::vector<uint8_t>& pps);
 
  private:
+  //pps的结构体
   struct PpsInfo {
     PpsInfo();
     PpsInfo(PpsInfo&& rhs);
@@ -54,6 +56,7 @@ class H264SpsPpsTracker {
     std::unique_ptr<uint8_t[]> data;
   };
 
+  //sps的结构体
   struct SpsInfo {
     SpsInfo();
     SpsInfo(SpsInfo&& rhs);

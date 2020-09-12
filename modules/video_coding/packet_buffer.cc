@@ -118,6 +118,7 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
 
   int64_t now_ms = clock_->TimeInMilliseconds();
   last_received_packet_ms_ = now_ms;
+  //设置最新packet时间和关键帧时间
   if (packet->video_header.frame_type == VideoFrameType::kVideoFrameKey ||
       last_received_keyframe_rtp_timestamp_ == packet->timestamp) {
     last_received_keyframe_packet_ms_ = now_ms;
@@ -192,9 +193,12 @@ absl::optional<int64_t> PacketBuffer::LastReceivedKeyframePacketMs() const {
   MutexLock lock(&mutex_);
   return last_received_keyframe_packet_ms_;
 }
+
 void PacketBuffer::ForceSpsPpsIdrIsH264Keyframe() {
   sps_pps_idr_is_h264_keyframe_ = true;
 }
+
+//清空，初始化
 void PacketBuffer::ClearInternal() {
   for (auto& entry : buffer_) {
     entry = nullptr;
@@ -215,6 +219,7 @@ bool PacketBuffer::ExpandBufferSize() {
     return false;
   }
 
+  //两倍，或者到最大值
   size_t new_size = std::min(max_size_, 2 * buffer_.size());
   std::vector<std::unique_ptr<Packet>> new_buffer(new_size);
   for (std::unique_ptr<Packet>& entry : buffer_) {
@@ -227,6 +232,7 @@ bool PacketBuffer::ExpandBufferSize() {
   return true;
 }
 
+//判断是否可能是新的帧
 bool PacketBuffer::PotentialNewFrame(uint16_t seq_num) const {
   size_t index = seq_num % buffer_.size();
   int prev_index = index > 0 ? index - 1 : buffer_.size() - 1;
@@ -393,6 +399,7 @@ std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
   return found_frames;
 }
 
+//更新newest_inserted_seq_num_和missing_packets_
 void PacketBuffer::UpdateMissingPackets(uint16_t seq_num) {
   if (!newest_inserted_seq_num_)
     newest_inserted_seq_num_ = seq_num;
@@ -400,6 +407,7 @@ void PacketBuffer::UpdateMissingPackets(uint16_t seq_num) {
   const int kMaxPaddingAge = 1000;
   if (AheadOf(seq_num, *newest_inserted_seq_num_)) {
     uint16_t old_seq_num = seq_num - kMaxPaddingAge;
+	//只保留到seq_num - 1000，前面的packet都丢弃掉
     auto erase_to = missing_packets_.lower_bound(old_seq_num);
     missing_packets_.erase(missing_packets_.begin(), erase_to);
 

@@ -56,6 +56,7 @@ inline std::string ToString(H264PacketizationMode mode) {
   return "";
 }
 
+//Nalu结构体
 struct NaluInfo {
   uint8_t type;
   int sps_id;

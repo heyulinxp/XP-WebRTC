@@ -42,6 +42,7 @@ class VCMTiming;
 
 namespace video_coding {
 
+//frame_buffer2是FrameBuffer，frame_buffer是VCMFrameBuffer
 class FrameBuffer {
  public:
   enum ReturnReason { kFrameFound, kTimeout, kStopped };

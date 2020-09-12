@@ -69,6 +69,7 @@ class VCMPacket {
   VCMNaluCompleteness completeNALU;  // Default is kNaluIncomplete.
   bool insertStartCode;  // True if a start code should be inserted before this
                          // packet.
+  //一个packet的头部数据
   RTPVideoHeader video_header;
   absl::optional<RtpGenericFrameDescriptor> generic_descriptor;
 

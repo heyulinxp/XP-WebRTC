@@ -27,6 +27,7 @@ namespace webrtc {
 
 class VCMReceiveCallback;
 
+//解码帧数记忆长度10？
 enum { kDecoderFrameMemoryLength = 10 };
 
 struct VCMFrameInformation {

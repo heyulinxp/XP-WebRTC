@@ -64,6 +64,7 @@ class VCMDecoderDataBase {
   bool PrefersLateDecoding() const;
 
  private:
+  //保存两个DecoderMapItem的map类型
   typedef std::map<uint8_t, VCMDecoderMapItem*> DecoderMap;
   typedef std::map<uint8_t, VCMExtDecoderMapItem*> ExternalDecoderMap;
 
