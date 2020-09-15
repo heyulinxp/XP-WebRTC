@@ -462,6 +462,7 @@ RtpVideoStreamReceiver2::ParseGenericDependenciesExtension(
   return kHasGenericDescriptor;
 }
 
+//收到载荷数据
 void RtpVideoStreamReceiver2::OnReceivedPayloadData(
     rtc::CopyOnWriteBuffer codec_payload,
     const RtpPacketReceived& rtp_packet,
@@ -512,6 +513,7 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
   // Color space should only be transmitted in the last packet of a frame,
   // therefore, neglect it otherwise so that last_color_space_ is not reset by
   // mistake.
+  //颜色空间应该只在帧的最后一个包中传输，否则忽略它，这样就不会错误地重置最后一个颜色空间。
   if (video_header.is_last_packet_in_frame) {
     video_header.color_space = rtp_packet.GetExtension<ColorSpaceExtension>();
     if (video_header.color_space ||
@@ -519,8 +521,12 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
       // Store color space since it's only transmitted when changed or for key
       // frames. Color space will be cleared if a key frame is transmitted
       // without color space information.
+      //存储颜色空间，因为它只在更改或关键帧时传输。
+      //如果在没有颜色空间信息的情况下传输关键帧，则颜色空间将被清除。
+      //这里存
       last_color_space_ = video_header.color_space;
     } else if (last_color_space_) {
+      //这里改后续的hedaer里的color_space
       video_header.color_space = last_color_space_;
     }
   }
@@ -605,6 +611,7 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
 void RtpVideoStreamReceiver2::OnRecoveredPacket(const uint8_t* rtp_packet,
                                                 size_t rtp_packet_length) {
   RtpPacketReceived packet;
+  //赋值packet
   if (!packet.Parse(rtp_packet, rtp_packet_length))
     return;
   if (packet.PayloadType() == config_.rtp.red_payload_type) {
@@ -715,6 +722,7 @@ bool RtpVideoStreamReceiver2::IsDecryptable() const {
   return frames_decryptable_;
 }
 
+//插入packet后
 void RtpVideoStreamReceiver2::OnInsertedPacket(
     video_coding::PacketBuffer::InsertResult result) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
@@ -781,6 +789,7 @@ void RtpVideoStreamReceiver2::OnInsertedPacket(
     }
   }
   RTC_DCHECK(frame_boundary);
+  //被标记了buffer_cleared，清空buffer了，所以要请求关键帧
   if (result.buffer_cleared) {
     RequestKeyFrame();
   }
@@ -855,11 +864,13 @@ void RtpVideoStreamReceiver2::OnAssembledFrame(
   }
 }
 
+//接收到完整的frame了
 void RtpVideoStreamReceiver2::OnCompleteFrame(
     std::unique_ptr<video_coding::EncodedFrame> frame) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
   video_coding::RtpFrameObject* rtp_frame =
       static_cast<video_coding::RtpFrameObject*>(frame.get());
+  //该picId的最后一个seqNum
   last_seq_num_for_pic_id_[rtp_frame->id.picture_id] =
       rtp_frame->last_seq_num();
 
@@ -944,6 +955,7 @@ void RtpVideoStreamReceiver2::ManageFrame(
   reference_finder_->ManageFrame(std::move(frame));
 }
 
+//收到一个packet
 void RtpVideoStreamReceiver2::ReceivePacket(const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
   if (packet.payload_size() == 0) {

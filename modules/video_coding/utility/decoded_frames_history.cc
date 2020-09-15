@@ -70,6 +70,7 @@ void DecodedFramesHistory::InsertDecoded(const VideoLayerFrameId& frameid,
   history.last_picture_id = frameid.picture_id;
 }
 
+//判断是否已经被decode了
 bool DecodedFramesHistory::WasDecoded(const VideoLayerFrameId& frameid) {
   // Unseen before spatial layer.
   if (static_cast<int>(layers_.size()) < frameid.spatial_layer + 1)

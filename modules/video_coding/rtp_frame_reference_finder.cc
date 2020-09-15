@@ -38,9 +38,11 @@ RtpFrameReferenceFinder::RtpFrameReferenceFinder(
 
 RtpFrameReferenceFinder::~RtpFrameReferenceFinder() = default;
 
+//判断帧间参考关系。若当前帧的参考帧没到，继续等。
 void RtpFrameReferenceFinder::ManageFrame(
     std::unique_ptr<RtpFrameObject> frame) {
   // If we have cleared past this frame, drop it.
+  //已经被clear过的，直接放弃
   if (cleared_to_seq_num_ != -1 &&
       AheadOf<uint16_t>(cleared_to_seq_num_, frame->first_seq_num())) {
     return;

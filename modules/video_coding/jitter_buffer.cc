@@ -872,6 +872,7 @@ bool VCMJitterBuffer::RecycleFramesUntilKeyFrame() {
     RTC_LOG(LS_INFO) << "Found key frame while dropping frames.";
     // Reset last decoded state to make sure the next frame decoded is a key
     // frame, and start NACKing from here.
+    //重设last_decoded_state_，确保下一帧是关键帧，然后从这里开始NACKing
     last_decoded_state_.Reset();
     DropPacketsFromNackList(EstimatedLowSequenceNumber(*key_frame_it->second));
   } else if (decodable_frames_.empty()) {

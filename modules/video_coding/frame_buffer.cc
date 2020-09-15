@@ -89,12 +89,14 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
   if (kStateEmpty == _state) {
     // First packet (empty and/or media) inserted into this frame.
     // store some info and set some initial values.
+    //插入此帧中的第一个数据包（空的和/或媒体）。存储一些信息并设置一些初始值。
     SetTimestamp(packet.timestamp);
     // We only take the ntp timestamp of the first packet of a frame.
     ntp_time_ms_ = packet.ntp_time_ms_;
     _codec = packet.codec();
     if (packet.video_header.frame_type != VideoFrameType::kEmptyFrame) {
       // first media packet
+      //第一帧媒体帧，frame_type不是kEmptyFrame
       SetState(kStateIncomplete);
     }
   }
@@ -104,6 +106,7 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
       (packet.insertStartCode ? kH264StartCodeLengthBytes : 0);
   if (requiredSizeBytes > capacity()) {
     const uint8_t* prevBuffer = data();
+	//增加的空间大小是kBufferIncStepSizeBytes（30000）的倍数
     const uint32_t increments =
         requiredSizeBytes / kBufferIncStepSizeBytes +
         (requiredSizeBytes % kBufferIncStepSizeBytes > 0);
@@ -134,6 +137,7 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
   if (packet.sizeBytes > 0)
     CopyCodecSpecific(&packet.video_header);
 
+  //插入packet，返回值如果是负数，则是错误码；正数则是增加的大小
   int retVal = _sessionInfo.InsertPacket(packet, data(), frame_data);
   if (retVal == -1) {
     return kSizeError;

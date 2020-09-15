@@ -122,17 +122,21 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
                                         uint32_t frameSizeBytes,
                                         bool incompleteFrame /* = false */) {
   if (frameSizeBytes == 0) {
+  	//空帧返回
     return;
   }
   int deltaFS = frameSizeBytes - _prevFrameSize;
   if (_fsCount < kFsAccuStartupSamples) {
+  	//前5个，积累
     _fsSum += frameSizeBytes;
     _fsCount++;
   } else if (_fsCount == kFsAccuStartupSamples) {
     // Give the frame size filter.
+    //刚好5个了，赋值一下
     _avgFrameSize = static_cast<double>(_fsSum) / static_cast<double>(_fsCount);
     _fsCount++;
   }
+  //要么是不完整的frame，要么当前frameSizeBytes比平均值_avgFrameSize大？
   if (!incompleteFrame || frameSizeBytes > _avgFrameSize) {
     double avgFrameSize = _phi * _avgFrameSize + (1 - _phi) * frameSizeBytes;
     if (frameSizeBytes < _avgFrameSize + 2 * sqrt(_varFrameSize)) {
@@ -167,6 +171,8 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   // outlier. Even if it is an extreme outlier from a delay point of view, if
   // the frame size also is large the deviation is probably due to an incorrect
   // line slope.
+  //仅当样本不被视为极端异常值时才更新Kalman滤波器。
+  //即使从延迟的角度来看是一个极端的异常值，如果帧大小也很大，则可能是由于不正确的线斜率造成的。
   double deviation = DeviationFromExpectedDelay(frameDelayMS, deltaFS);
 
   if (fabs(deviation) < _numStdDevDelayOutlier * sqrt(_varNoise) ||
@@ -174,6 +180,7 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
           _avgFrameSize + _numStdDevFrameSizeOutlier * sqrt(_varFrameSize)) {
     // Update the variance of the deviation from the line given by the Kalman
     // filter.
+    //更新卡尔曼滤波器
     EstimateRandomJitter(deviation, incompleteFrame);
     // Prevent updating with frames which have been congested by a large frame,
     // and therefore arrives almost at the same time as that frame.
@@ -181,6 +188,9 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
     // delayed. The next frame is of normal size (delta frame), and thus deltaFS
     // will be << 0. This removes all frame samples which arrives after a key
     // frame.
+    //防止使用被大帧阻塞的帧进行更新，因此几乎与该帧同时到达。
+    //当我们接收到延迟的大帧（关键帧）时，可能会发生这种情况。
+    //下一帧为正常大小（delta frame），因此deltaFS将<<0。这将删除关键帧之后到达的所有帧采样。
     if ((!incompleteFrame || deviation >= 0.0) &&
         static_cast<double>(deltaFS) > -0.25 * _maxFrameSize) {
       // Update the Kalman filter with the new data
@@ -200,6 +210,7 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
 }
 
 // Updates the nack/packet ratio.
+//统计nack的frame数量，更新nack/packet的比例
 void VCMJitterEstimator::FrameNacked() {
   if (_nackCount < _nackLimit) {
     _nackCount++;

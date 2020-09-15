@@ -276,6 +276,7 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
   PacketRouter* const packet_router_;
   ProcessThread* const process_thread_;
 
+  //Network Time Protocol，NTP，时间对齐协议
   RemoteNtpTimeEstimator ntp_estimator_;
 
   RtpHeaderExtensionMap rtp_header_extensions_;

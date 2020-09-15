@@ -191,12 +191,14 @@ int VCMSessionInfo::NumPackets() const {
   return packets_.size();
 }
 
+//插入packet到frame_buffer中，返回是插入的长度
 size_t VCMSessionInfo::InsertBuffer(uint8_t* frame_buffer,
                                     PacketIterator packet_it) {
   VCMPacket& packet = *packet_it;
   PacketIterator it;
 
   // Calculate the offset into the frame buffer for this packet.
+  //从开头到当前位置的距离
   size_t offset = 0;
   for (it = packets_.begin(); it != packet_it; ++it)
     offset += (*it).sizeBytes;
@@ -214,6 +216,8 @@ size_t VCMSessionInfo::InsertBuffer(uint8_t* frame_buffer,
   const size_t kLengthFieldLength = 2;
   const auto* h264 =
       absl::get_if<RTPVideoHeaderH264>(&packet.video_header.video_type_header);
+  
+  //kH264StapA状况特殊处理
   if (h264 && h264->packetization_type == kH264StapA) {
     size_t required_length = 0;
     const uint8_t* nalu_ptr = packet_buffer + kH264NALHeaderLengthInBytes;
@@ -236,6 +240,7 @@ size_t VCMSessionInfo::InsertBuffer(uint8_t* frame_buffer,
     packet.sizeBytes = required_length;
     return packet.sizeBytes;
   }
+  
   ShiftSubsequentPackets(
       packet_it, packet.sizeBytes +
                      (packet.insertStartCode ? kH264StartCodeLengthBytes : 0));
@@ -246,6 +251,7 @@ size_t VCMSessionInfo::InsertBuffer(uint8_t* frame_buffer,
   return packet.sizeBytes;
 }
 
+//插入buffer到frame_buffer中，返回值是插入的长度
 size_t VCMSessionInfo::Insert(const uint8_t* buffer,
                               size_t length,
                               bool insert_start_code,
@@ -261,6 +267,7 @@ size_t VCMSessionInfo::Insert(const uint8_t* buffer,
   return length;
 }
 
+//移动接下来连续的packets
 void VCMSessionInfo::ShiftSubsequentPackets(PacketIterator it,
                                             int steps_to_shift) {
   ++it;
@@ -285,6 +292,7 @@ void VCMSessionInfo::UpdateCompleteSession() {
     PacketIterator it = packets_.begin();
     PacketIterator prev_it = it;
     ++it;
+	//两两连续的packet要seqNum是连续的
     for (; it != packets_.end(); ++it) {
       if (!InSequence(it, prev_it)) {
         complete_session = false;
@@ -303,6 +311,7 @@ bool VCMSessionInfo::complete() const {
 // Find the end of the NAL unit which the packet pointed to by |packet_it|
 // belongs to. Returns an iterator to the last packet of the frame if the end
 // of the NAL unit wasn't found.
+//找最后一个nal unit，如果没找到，返回这个frame的最后一个packet
 VCMSessionInfo::PacketIterator VCMSessionInfo::FindNaluEnd(
     PacketIterator packet_it) const {
   if ((*packet_it).completeNALU == kNaluEnd ||
@@ -315,6 +324,8 @@ VCMSessionInfo::PacketIterator VCMSessionInfo::FindNaluEnd(
          (*packet_it).sizeBytes > 0) ||
         // Found next NALU.
         (*packet_it).completeNALU == kNaluStart)
+      //如果这个packet是complete并且sizeBytes>0（这个为什么）
+      //或者这个packet是start，说明它的前一个是nalu end
       return --packet_it;
     if ((*packet_it).completeNALU == kNaluEnd)
       return packet_it;
@@ -332,6 +343,7 @@ size_t VCMSessionInfo::DeletePacketData(PacketIterator start,
 
   // Get the number of bytes to delete.
   // Clear the size of these packets.
+  //统计要删除的大小bytes_to_delete，然后把所有packet的sizeBytes置0
   for (PacketIterator it = start; it != packet_after_end; ++it) {
     bytes_to_delete += (*it).sizeBytes;
     (*it).sizeBytes = 0;
@@ -354,6 +366,7 @@ VCMSessionInfo::PacketIterator VCMSessionInfo::FindNextPartitionBeginning(
   return it;
 }
 
+//寻找这一个分段的终点
 VCMSessionInfo::PacketIterator VCMSessionInfo::FindPartitionEnd(
     PacketIterator it) const {
   assert((*it).codec() == kVideoCodecVP8);
@@ -380,7 +393,7 @@ VCMSessionInfo::PacketIterator VCMSessionInfo::FindPartitionEnd(
   return prev_it;
 }
 
-//如果两个迭代器指向同一个包，则认为它们是按顺序排列的
+//如果两个迭代器指向同一个包，或者他们的seqNum是连续的，则认为它们是按顺序排列的
 bool VCMSessionInfo::InSequence(const PacketIterator& packet_it,
                                 const PacketIterator& prev_packet_it) {
   // If the two iterators are pointing to the same packet they are considered
@@ -435,6 +448,7 @@ bool VCMSessionInfo::HaveLastPacket() const {
 int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
                                  uint8_t* frame_buffer,
                                  const FrameData& frame_data) {
+  //packet为空
   if (packet.video_header.frame_type == VideoFrameType::kEmptyFrame) {
     // Update sequence number of an empty packet.
     // Only media packets are inserted into the packet list.
@@ -449,6 +463,7 @@ int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
 
   // Find the position of this packet in the packet list in sequence number
   // order and insert it. Loop over the list in reverse order.
+  //在数据包列表中按序号顺序查找此数据包的位置并将其插入。按相反的顺序遍历列表。
   ReversePacketIterator rit = packets_.rbegin();
   for (; rit != packets_.rend(); ++rit)
     if (LatestSequenceNumber(packet.seqNum, (*rit).seqNum) == packet.seqNum)
@@ -479,13 +494,19 @@ int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
     // Placing check here, as to properly account for duplicate packets.
     // Check if this is first packet (only valid for some codecs)
     // Should only be set for one packet per session.
+    //仅在第一个和最后一个数据包之间插入媒体数据包（如果可用）。
+    //把检查放在这里，以便正确地解释重复的数据包。
+    //检查这是否是第一个数据包（仅对某些编解码器有效）。
+    //应仅为每个会话设置一个数据包。
     if (packet.is_first_packet_in_frame() && first_packet_seq_num_ == -1) {
+      //一个frame里的首个packet
       // The first packet in a frame signals the frame type.
       frame_type_ = packet.video_header.frame_type;
       // Store the sequence number for the first packet.
       first_packet_seq_num_ = static_cast<int>(packet.seqNum);
     } else if (first_packet_seq_num_ != -1 &&
                IsNewerSequenceNumber(first_packet_seq_num_, packet.seqNum)) {
+      //新的packet.seqNum比首个packet的seqNum还小，说明这个packet不正常
       RTC_LOG(LS_WARNING)
           << "Received packet with a sequence number which is out "
              "of frame boundaries";
@@ -494,14 +515,17 @@ int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
                packet.video_header.frame_type != VideoFrameType::kEmptyFrame) {
       // Update the frame type with the type of the first media packet.
       // TODO(mikhal): Can this trigger?
+      //frame的首个packet是kEmptyFrame，但是后面的不是了，把frame_type_改回正确的值
       frame_type_ = packet.video_header.frame_type;
     }
 
     // Track the marker bit, should only be set for one packet per session.
     if (packet.markerBit && last_packet_seq_num_ == -1) {
+      //最后一个packet设置markerBit
       last_packet_seq_num_ = static_cast<int>(packet.seqNum);
     } else if (last_packet_seq_num_ != -1 &&
                IsNewerSequenceNumber(packet.seqNum, last_packet_seq_num_)) {
+      //当前packet的seqNum比之前设置的last_packet_seq_num_还大，说明这个packet不正常
       RTC_LOG(LS_WARNING)
           << "Received packet with a sequence number which is out "
              "of frame boundaries";

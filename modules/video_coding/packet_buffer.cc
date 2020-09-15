@@ -73,6 +73,7 @@ PacketBuffer::~PacketBuffer() {
   Clear();
 }
 
+//关键方法，插入packet
 PacketBuffer::InsertResult PacketBuffer::InsertPacket(
     std::unique_ptr<PacketBuffer::Packet> packet) {
   PacketBuffer::InsertResult result;
@@ -82,20 +83,24 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
   size_t index = seq_num % buffer_.size();
 
   if (!first_packet_received_) {
+  	//第一个packet
     first_seq_num_ = seq_num;
     first_packet_received_ = true;
   } else if (AheadOf(first_seq_num_, seq_num)) {
     // If we have explicitly cleared past this packet then it's old,
     // don't insert it, just silently ignore it.
+    //看是直接return
     if (is_cleared_to_first_seq_num_) {
       return result;
     }
-
+    //还是直接修改first_seq_num_
     first_seq_num_ = seq_num;
   }
 
   if (buffer_[index] != nullptr) {
+  	//该位置已经有数据了
     // Duplicate packet, just delete the payload.
+    //seqNum相同，重复包
     if (buffer_[index]->seq_num == packet->seq_num) {
       return result;
     }
@@ -121,6 +126,7 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
   //设置最新packet时间和关键帧时间
   if (packet->video_header.frame_type == VideoFrameType::kVideoFrameKey ||
       last_received_keyframe_rtp_timestamp_ == packet->timestamp) {
+    //要么packet头部是关键帧，要么时间戳与已保存的时间戳相同，则更新这下面两个变量
     last_received_keyframe_packet_ms_ = now_ms;
     last_received_keyframe_rtp_timestamp_ = packet->timestamp;
   }
@@ -418,6 +424,7 @@ void PacketBuffer::UpdateMissingPackets(uint16_t seq_num) {
 
     ++*newest_inserted_seq_num_;
     while (AheadOf(seq_num, *newest_inserted_seq_num_)) {
+      //统计所有缺失的packet的seqNum
       missing_packets_.insert(*newest_inserted_seq_num_);
       ++*newest_inserted_seq_num_;
     }

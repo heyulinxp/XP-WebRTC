@@ -74,11 +74,13 @@ bool VCMInterFrameDelay::CalculateDelay(uint32_t timestamp,
 
 // Investigates if the timestamp clock has overflowed since the last timestamp
 // and keeps track of the number of wrap arounds since reset.
+//控制RTP时间戳计数器在当前帧和以前接收到的帧之间是否有环绕。
 void VCMInterFrameDelay::CheckForWrapArounds(uint32_t timestamp) {
   if (timestamp < _prevTimestamp) {
     // This difference will probably be less than -2^31 if we have had a wrap
     // around (e.g. timestamp = 1, _prevTimestamp = 2^32 - 1). Since it is cast
     // to a int32_t, it should be positive.
+    //timestamp = 1, _prevTimestamp = 2^32 - 1, timestamp - _prevTimestamp>0??
     if (static_cast<int32_t>(timestamp - _prevTimestamp) > 0) {
       // Forward wrap around.
       _wrapArounds++;

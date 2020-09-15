@@ -135,6 +135,7 @@ void VideoStreamDecoderImpl::SaveFrameInfo(
   next_frame_info_index_ = Add<kFrameInfoMemory>(next_frame_info_index_, 1);
 }
 
+//开始下一个decode
 void VideoStreamDecoderImpl::StartNextDecode() {
   int64_t max_wait_time = keyframe_required_ ? 200 : 3000;
 

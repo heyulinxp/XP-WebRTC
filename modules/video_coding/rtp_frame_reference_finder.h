@@ -69,6 +69,7 @@ class RtpFrameReferenceFinder {
   static const int kMaxGofSaved = 50;
   static const int kMaxPaddingAge = 100;
 
+  //三种策略
   enum FrameDecision { kStash, kHandOff, kDrop };
 
   struct GofInfo {

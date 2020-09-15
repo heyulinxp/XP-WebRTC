@@ -43,6 +43,7 @@ constexpr int kMaxFramesHistory = 1 << 13;
 
 // The time it's allowed for a frame to be late to its rendering prediction and
 // still be rendered.
+//延迟最大允许5ms
 constexpr int kMaxAllowedFrameDelayMs = 5;
 
 constexpr int64_t kLogNonDecodedIntervalMs = 5000;
@@ -80,6 +81,7 @@ void FrameBuffer::NextFrame(
   RTC_DCHECK_RUN_ON(&callback_checker_);
   RTC_DCHECK(callback_queue->IsCurrent());
   TRACE_EVENT0("webrtc", "FrameBuffer::NextFrame");
+  //最晚返回的时间
   int64_t latest_return_time_ms =
       clock_->TimeInMilliseconds() + max_wait_time_ms;
 
@@ -94,6 +96,7 @@ void FrameBuffer::NextFrame(
   StartWaitForNextFrameOnQueue();
 }
 
+//开始在queue中等待下一个frame的到来
 void FrameBuffer::StartWaitForNextFrameOnQueue() {
   RTC_DCHECK(callback_queue_);
   RTC_DCHECK(!callback_task_.Running());
@@ -218,6 +221,7 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
   return wait_ms;
 }
 
+//获得下一个frame
 EncodedFrame* FrameBuffer::GetNextFrame() {
   RTC_DCHECK_RUN_ON(&callback_checker_);
   int64_t now_ms = clock_->TimeInMilliseconds();
@@ -299,6 +303,7 @@ EncodedFrame* FrameBuffer::GetNextFrame() {
   }
 }
 
+//是否有渲染时长不对的情况
 bool FrameBuffer::HasBadRenderTiming(const EncodedFrame& frame,
                                      int64_t now_ms) {
   // Assume that render timing errors are due to changes in the video stream.
@@ -307,6 +312,7 @@ bool FrameBuffer::HasBadRenderTiming(const EncodedFrame& frame,
   if (render_time_ms == 0) {
     return false;
   }
+  //负数的就是错误的了？
   if (render_time_ms < 0) {
     return true;
   }
@@ -354,6 +360,7 @@ void FrameBuffer::UpdateRtt(int64_t rtt_ms) {
   jitter_estimator_.UpdateRtt(rtt_ms);
 }
 
+//判断此frame的参考帧是否合法
 bool FrameBuffer::ValidReferences(const EncodedFrame& frame) const {
   for (size_t i = 0; i < frame.num_references; ++i) {
     if (frame.references[i] >= frame.id.picture_id)
@@ -371,6 +378,7 @@ bool FrameBuffer::ValidReferences(const EncodedFrame& frame) const {
   return true;
 }
 
+//注销callback监听
 void FrameBuffer::CancelCallback() {
   // Called from the callback queue or from within Stop().
   frame_handler_ = {};
@@ -422,6 +430,8 @@ bool FrameBuffer::IsCompleteSuperFrame(const EncodedFrame& frame) {
   return true;
 }
 
+//关键步骤，插入frame
+//对当前帧的参考关系、时间戳进行合法性判断。合法帧发送信号量，知会解码器取数据。
 int64_t FrameBuffer::InsertFrame(std::unique_ptr<EncodedFrame> frame) {
   TRACE_EVENT0("webrtc", "FrameBuffer::InsertFrame");
   RTC_DCHECK(frame);
@@ -469,6 +479,8 @@ int64_t FrameBuffer::InsertFrame(std::unique_ptr<EncodedFrame> frame) {
       // reconfiguration or some other reason. Even though this is not according
       // to spec we can still continue to decode from this frame if it is a
       // keyframe.
+      //如果此帧的时间戳较新，但图片ID较早，则我们假定由于编码器的重新配置或其他原因，
+      //图片ID出现了跳跃。 即使这不符合规范，如果它是关键帧，我们仍然可以继续从该帧解码。
       RTC_LOG(LS_WARNING)
           << "A jump in picture id was detected, clearing buffer.";
       ClearFramesAndHistory();
@@ -488,6 +500,8 @@ int64_t FrameBuffer::InsertFrame(std::unique_ptr<EncodedFrame> frame) {
   // Test if inserting this frame would cause the order of the frames to become
   // ambiguous (covering more than half the interval of 2^16). This can happen
   // when the picture id make large jumps mid stream.
+  //测试插入此帧是否会导致帧顺序变得模棱两可（覆盖2 ^ 16间隔的一半以上）。
+  //当图片ID在流中大幅跳动时，可能会发生这种情况。
   if (!frames_.empty() && id < frames_.begin()->first &&
       frames_.rbegin()->first < id) {
     RTC_LOG(LS_WARNING)
@@ -571,6 +585,7 @@ void FrameBuffer::PropagateContinuity(FrameMap::iterator start) {
   }
 }
 
+//传播decodable的能力
 void FrameBuffer::PropagateDecodability(const FrameInfo& info) {
   TRACE_EVENT0("webrtc", "FrameBuffer::PropagateDecodability");
   for (size_t d = 0; d < info.dependent_frames.size(); ++d) {
@@ -584,6 +599,7 @@ void FrameBuffer::PropagateDecodability(const FrameInfo& info) {
   }
 }
 
+//根据frame更新frameInfo，如果一直不能decode则返回false，否则返回true
 bool FrameBuffer::UpdateFrameInfoWithIncomingFrame(const EncodedFrame& frame,
                                                    FrameMap::iterator info) {
   TRACE_EVENT0("webrtc", "FrameBuffer::UpdateFrameInfoWithIncomingFrame");
@@ -690,6 +706,7 @@ void FrameBuffer::UpdateTimingFrameInfo() {
     stats_callback_->OnTimingFrameInfoUpdated(*info);
 }
 
+//清理掉一些frame和history
 void FrameBuffer::ClearFramesAndHistory() {
   TRACE_EVENT0("webrtc", "FrameBuffer::ClearFramesAndHistory");
   if (stats_callback_) {
