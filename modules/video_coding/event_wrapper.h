@@ -27,6 +27,10 @@ class EventWrapper {
   // multithreaded programming.
   // Set is sticky in the sense that it will release at least one thread
   // either immediately or some time in the future.
+  //释放正在调用Wait（）并已开始等待的线程。
+  //请注意，调用Wait（）的线程不会立即开始等待。
+  //相反的假设是多线程编程中常见的问题来源。
+  //Set是粘性的，因为它将立即或在未来某个时间释放至少一个线程。
   virtual bool Set() = 0;
 
   // Puts the calling thread into a wait state. The thread may be released
@@ -38,6 +42,12 @@ class EventWrapper {
   // Depending on timing.
   //
   // |max_time_ms| is the maximum time to wait in milliseconds.
+  //将调用线程置于等待状态。
+  //该线程可以通过Set（）调用释放，具体取决于是否有其他线程在等待，如果是，则取决于计时。
+  //已释放的线程将在离开之前重置事件，以阻止释放更多线程。
+  //如果多个线程正在等待同一个Set（），则保证只释放一个（随机）线程。
+  //有可能根据定时释放多个（随机）线程。
+  //|max_time_ms |是等待的最长时间（毫秒）。
   virtual EventTypeWrapper Wait(int max_time_ms) = 0;
 };
 

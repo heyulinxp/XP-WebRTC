@@ -71,12 +71,14 @@ int32_t VCMReceiver::InsertPacket(const VCMPacket& packet) {
     // We don't want to include timestamps which have suffered from
     // retransmission here, since we compensate with extra retransmission
     // delay within the jitter estimate.
+    //我们不想在这里包括重发的时间戳，因为我们在抖动估计中用额外的重传延迟来补偿。
     timing_->IncomingTimestamp(packet.timestamp, clock_->TimeInMilliseconds());
   }
   return VCM_OK;
 }
 
 //最长等待max_wait_time_ms，从jitterbuffer里取一帧出来用作解码
+//获取frame出来提供给解码器解码
 VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
                                                bool prefer_late_decoding) {
   const int64_t start_time_ms = clock_->TimeInMilliseconds();
@@ -85,6 +87,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
   int max_playout_delay_ms = -1;
   int64_t render_time_ms = 0;
   // Exhaust wait time to get a complete frame for decoding.
+  //取出来一帧进行解码
   VCMEncodedFrame* found_frame =
       jitter_buffer_.NextCompleteFrame(max_wait_time_ms);
 
@@ -106,6 +109,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
   timing_->SetJitterDelay(jitter_buffer_.EstimatedJitterMs());
   const int64_t now_ms = clock_->TimeInMilliseconds();
   timing_->UpdateCurrentDelay(frame_timestamp);
+  //计算渲染所需的时间
   render_time_ms = timing_->RenderTimeMs(frame_timestamp, now_ms);
   // Check render timing.
   bool timing_error = false;
@@ -113,6 +117,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
   if (render_time_ms < 0) {
     timing_error = true;
   } else if (std::abs(render_time_ms - now_ms) > max_video_delay_ms_) {
+    //渲染时间超过10s
     int frame_delay = static_cast<int>(std::abs(render_time_ms - now_ms));
     RTC_LOG(LS_WARNING)
         << "A frame about to be decoded is out of the configured "
@@ -130,11 +135,13 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
 
   if (timing_error) {
     // Timing error => reset timing and flush the jitter buffer.
+    //时间错误，重置timing_，并且刷新jitter buffer
     jitter_buffer_.Flush();
     timing_->Reset();
     return NULL;
   }
 
+  //更乐意晚点解码？
   if (prefer_late_decoding) {
     // Decode frame as close as possible to the render timestamp.
     const int32_t available_wait_time =
@@ -156,6 +163,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
   }
 
   // Extract the frame from the jitter buffer and set the render time.
+  //从抖动缓冲区提取帧并设置渲染时间
   VCMEncodedFrame* frame = jitter_buffer_.ExtractAndSetDecode(frame_timestamp);
   if (frame == NULL) {
     return NULL;
@@ -172,6 +180,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
       // We don't want to include timestamps which have suffered from
       // retransmission here, since we compensate with extra retransmission
       // delay within the jitter estimate.
+      //我们不想在这里包括重发的时间戳，因为我们在抖动估计中用额外的重传延迟来补偿。
       timing_->IncomingTimestamp(frame_timestamp, last_packet_time_ms);
     }
   }

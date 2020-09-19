@@ -21,6 +21,7 @@ namespace webrtc {
 namespace {
 // Keep a container's size no higher than |max_allowed_size|, by paring its size
 // down to |target_size| whenever it has more than |max_allowed_size| elements.
+//当数量超过max_allowed_size时，删除一些直到target_size
 template <typename Container>
 void PareDown(Container* container,
               size_t max_allowed_size,
@@ -47,6 +48,7 @@ LossNotificationController::LossNotificationController(
 
 LossNotificationController::~LossNotificationController() = default;
 
+//收到RTP包
 void LossNotificationController::OnReceivedPacket(
     uint16_t rtp_seq_num,
     const LossNotificationController::FrameDetails* frame) {
@@ -71,6 +73,7 @@ void LossNotificationController::OnReceivedPacket(
   if (frame != nullptr) {
     // Ignore repeated or reordered frames.
     // TODO(bugs.webrtc.org/10336): Handle frame reordering.
+    //到达的包是乱序的，序号在last_received_frame_id_之前
     if (last_received_frame_id_.has_value() &&
         frame->frame_id <= last_received_frame_id_.value()) {
       RTC_LOG(LS_WARNING) << "Repeated or reordered frame ID ("
@@ -128,6 +131,7 @@ void LossNotificationController::OnAssembledFrame(
   RTC_DCHECK(it.second);
 }
 
+//丢弃掉不用的信息
 void LossNotificationController::DiscardOldInformation() {
   constexpr size_t kExpectedKeyFrameIntervalFrames = 3000;
   constexpr size_t kMaxSize = 2 * kExpectedKeyFrameIntervalFrames;

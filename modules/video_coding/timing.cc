@@ -82,6 +82,7 @@ int VCMTiming::max_playout_delay() {
   return max_playout_delay_ms_;
 }
 
+//设置视频必须在接收器上延迟的最短时间，以获得所需的抖动缓冲级别
 void VCMTiming::SetJitterDelay(int jitter_delay_ms) {
   MutexLock lock(&mutex_);
   if (jitter_delay_ms != jitter_delay_ms_) {
@@ -169,18 +170,21 @@ void VCMTiming::IncomingTimestamp(uint32_t time_stamp, int64_t now_ms) {
   ts_extrapolator_->Update(now_ms, time_stamp);
 }
 
+//计算渲染需要的时间
 int64_t VCMTiming::RenderTimeMs(uint32_t frame_timestamp,
                                 int64_t now_ms) const {
   MutexLock lock(&mutex_);
   return RenderTimeMsInternal(frame_timestamp, now_ms);
 }
 
+//计算渲染需要的时间
 int64_t VCMTiming::RenderTimeMsInternal(uint32_t frame_timestamp,
                                         int64_t now_ms) const {
   if (min_playout_delay_ms_ == 0 && max_playout_delay_ms_ == 0) {
     // Render as soon as possible.
     return 0;
   }
+  //时间外推
   int64_t estimated_complete_time_ms =
       ts_extrapolator_->ExtrapolateLocalTime(frame_timestamp);
   if (estimated_complete_time_ms == -1) {
@@ -200,6 +204,7 @@ int VCMTiming::RequiredDecodeTimeMs() const {
   return decode_time_ms;
 }
 
+//估计的最大等待时间=渲染后的时间-当前时间-编码所需时间-渲染所需时间
 int64_t VCMTiming::MaxWaitingTime(int64_t render_time_ms,
                                   int64_t now_ms) const {
   MutexLock lock(&mutex_);
@@ -210,6 +215,9 @@ int64_t VCMTiming::MaxWaitingTime(int64_t render_time_ms,
   return max_wait_time_ms;
 }
 
+// Returns the current target delay which is required delay + decode time +
+// render delay.
+//jitter延时+解码延时+渲染延时
 int VCMTiming::TargetVideoDelay() const {
   MutexLock lock(&mutex_);
   return TargetDelayInternal();

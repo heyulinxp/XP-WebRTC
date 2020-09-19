@@ -142,8 +142,10 @@ int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
       static_cast<double>(timestamp90khz) +
       _wrapArounds * ((static_cast<int64_t>(1) << 32) - 1);
   if (_packetCount == 0) {
+  	//第一帧
     localTimeMs = -1;
   } else if (_packetCount < _startUpFilterDelayInPackets) {
+    //还未到delay需要满足的数量,也就是前几个的时候
     localTimeMs =
         _prevMs +
         static_cast<int64_t>(
@@ -165,6 +167,7 @@ int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
 
 // Investigates if the timestamp clock has overflowed since the last timestamp
 // and keeps track of the number of wrap arounds since reset.
+//这个函数跟inter_frame_delay.cc里的VCMInterFrameDelay::CheckForWrapArounds函数差不多
 void TimestampExtrapolator::CheckForWrapArounds(uint32_t ts90khz) {
   if (_prevWrapTimestamp == -1) {
     _prevWrapTimestamp = ts90khz;

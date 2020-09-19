@@ -68,7 +68,9 @@
 namespace webrtc {
 
 namespace {
+//如果有一个uri为kTransportSequenceNumberV2Uri则返回false
 bool SendPeriodicFeedback(const std::vector<RtpExtension>& extensions) {
+  //发送阶段性的回馈?
   for (const auto& extension : extensions) {
     if (extension.uri == RtpExtension::kTransportSequenceNumberV2Uri)
       return false;
@@ -467,6 +469,7 @@ Call* Call::Create(const Call::Config& config,
                 ProcessThread::Create("PacerThread"));
 }
 
+//ModuleProcessThread, PacerThread
 Call* Call::Create(const Call::Config& config,
                    Clock* clock,
                    rtc::scoped_refptr<SharedModuleThread> call_thread,

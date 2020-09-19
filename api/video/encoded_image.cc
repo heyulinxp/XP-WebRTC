@@ -34,6 +34,7 @@ EncodedImageBuffer::~EncodedImageBuffer() {
 rtc::scoped_refptr<EncodedImageBuffer> EncodedImageBuffer::Create(size_t size) {
   return new rtc::RefCountedObject<EncodedImageBuffer>(size);
 }
+
 // static
 rtc::scoped_refptr<EncodedImageBuffer> EncodedImageBuffer::Create(
     const uint8_t* data,
@@ -87,6 +88,7 @@ void EncodedImage::SetEncodeTime(int64_t encode_start_ms,
   timing_.encode_finish_ms = encode_finish_ms;
 }
 
+//得到空间层帧的数量?
 absl::optional<size_t> EncodedImage::SpatialLayerFrameSize(
     int spatial_index) const {
   RTC_DCHECK_GE(spatial_index, 0);
@@ -100,6 +102,7 @@ absl::optional<size_t> EncodedImage::SpatialLayerFrameSize(
   return it->second;
 }
 
+//设置空间层帧的大小?
 void EncodedImage::SetSpatialLayerFrameSize(int spatial_index,
                                             size_t size_bytes) {
   RTC_DCHECK_GE(spatial_index, 0);

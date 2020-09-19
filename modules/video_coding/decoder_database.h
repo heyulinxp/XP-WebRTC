@@ -55,12 +55,17 @@ class VCMDecoderDataBase {
   // decoder already exists an instance will be created and initialized.
   // nullptr is returned if no decoder with the specified payload type was found
   // and the function failed to create one.
+  //返回由指定的解码器框架.有效载荷类型.
+  //解码器的解码帧回调被设置为|解码帧回调|。
+  //如果不存在这样的解码器，将创建并初始化一个实例。
+  //如果找不到具有指定负载类型的解码器，并且函数未能创建解码器，则返回nullptr。
   VCMGenericDecoder* GetDecoder(
       const VCMEncodedFrame& frame,
       VCMDecodedFrameCallback* decoded_frame_callback);
 
   // Returns true if the currently active decoder prefer to decode frames late.
   // That means that frames must be decoded near the render times stamp.
+  //如果当前活动解码器喜欢延迟解码帧，则返回true。这意味着帧必须在渲染时间戳附近解码。
   bool PrefersLateDecoding() const;
 
  private:

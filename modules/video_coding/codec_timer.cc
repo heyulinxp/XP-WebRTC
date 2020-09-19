@@ -37,10 +37,12 @@ void VCMCodecTimer::AddTiming(int64_t decode_time_ms, int64_t now_ms) {
   }
 
   // Insert new decode time value.
+  //插入数据
   filter_.Insert(decode_time_ms);
   history_.emplace(decode_time_ms, now_ms);
 
   // Pop old decode time values.
+  //踢掉一些数据
   while (!history_.empty() &&
          now_ms - history_.front().sample_time_ms > kTimeLimitMs) {
     filter_.Erase(history_.front().decode_time_ms);
@@ -49,6 +51,7 @@ void VCMCodecTimer::AddTiming(int64_t decode_time_ms, int64_t now_ms) {
 }
 
 // Get the 95th percentile observed decode time within a time window.
+//获取所需的解码时间（毫秒）。这是在一个时间窗口内观察到的第95个百分位解码时间。
 int64_t VCMCodecTimer::RequiredDecodeTimeMs() const {
   return filter_.GetPercentileValue();
 }

@@ -64,6 +64,8 @@ bool VCMDecoderDataBase::DeregisterExternalDecoder(uint8_t payload_type) {
 
 // Add the external decoder object to the list of external decoders.
 // Won't be registered as a receive codec until RegisterReceiveCodec is called.
+//将外部解码器对象添加到外部解码器列表中。
+//在调用RegisterReceiveCodec之前，不会注册为接收编解码器。
 void VCMDecoderDataBase::RegisterExternalDecoder(VideoDecoder* external_decoder,
                                                  uint8_t payload_type) {
   // If payload value already exists, erase old and insert new.

@@ -210,7 +210,7 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
 }
 
 // Updates the nack/packet ratio.
-//统计nack的frame数量，更新nack/packet的比例
+//统计nack的frame数量，更新_latestNackTimestamp时间戳
 void VCMJitterEstimator::FrameNacked() {
   if (_nackCount < _nackLimit) {
     _nackCount++;

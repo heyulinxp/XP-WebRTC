@@ -27,11 +27,14 @@ void VCMInterFrameDelay::Reset(int64_t currentWallClock) {
 
 // Calculates the delay of a frame with the given timestamp.
 // This method is called when the frame is complete.
+//计算具有给定时间戳的帧的延迟。此方法在帧完成时调用。
+//返回值true表示没有重排序,false表示有重排序
 bool VCMInterFrameDelay::CalculateDelay(uint32_t timestamp,
                                         int64_t* delay,
                                         int64_t currentWallClock) {
   if (_prevWallClock == 0) {
     // First set of data, initialization, wait for next frame.
+    //初始化
     _prevWallClock = currentWallClock;
     _prevTimestamp = timestamp;
     *delay = 0;
@@ -47,14 +50,18 @@ bool VCMInterFrameDelay::CalculateDelay(uint32_t timestamp,
   // Account for reordering in jitter variance estimate in the future?
   // Note that this also captures incomplete frames which are grabbed for
   // decoding after a later frame has been complete, i.e. real packet losses.
+  //考虑到未来抖动方差估计的重新排序？
+  //注意，这也捕获了在下一帧完成后被抓取用于解码的不完整帧，即实际的分组丢失。
   if ((wrapAroundsSincePrev == 0 && timestamp < _prevTimestamp) ||
       wrapAroundsSincePrev < 0) {
+    //wrapAroundsSincePrev < 0, _wrapArounds < prevWrapArounds,后退了,表明有重排序?
     *delay = 0;
     return false;
   }
 
   // Compute the compensated timestamp difference and convert it to ms and round
   // it to closest integer.
+  //计算补偿后的时间戳差并将其转换为ms并四舍五入到最接近的整数。
   _dTS = static_cast<int64_t>(
       (timestamp + wrapAroundsSincePrev * (static_cast<int64_t>(1) << 32) -
        _prevTimestamp) /
@@ -64,6 +71,7 @@ bool VCMInterFrameDelay::CalculateDelay(uint32_t timestamp,
   // frameDelay is the difference of dT and dTS -- i.e. the difference of the
   // wall clock time difference and the timestamp difference between two
   // following frames.
+  //帧延迟是dT和dTS的差，即墙时钟时差和后两帧之间的时间戳差。
   *delay = static_cast<int64_t>(currentWallClock - _prevWallClock - _dTS);
 
   _prevTimestamp = timestamp;

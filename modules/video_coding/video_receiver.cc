@@ -79,6 +79,8 @@ void VideoReceiver::Process() {
   // Packet retransmission requests
   // TODO(holmer): Add API for changing Process interval and make sure it's
   // disabled when NACK is off.
+  //包重传请求
+  //TODO（holmer）：添加用于更改进程间隔的API，并确保在NACK关闭时将其禁用。
   if (_retransmissionTimer.TimeUntilProcess() == 0) {
     _retransmissionTimer.Processed();
     bool callback_registered = _packetRequestCallback != nullptr;
@@ -218,6 +220,7 @@ int32_t VideoReceiver::Decode(uint16_t maxWaitTimeMs) {
   return ret;
 }
 
+//返回值是错误码
 int32_t VideoReceiver::RequestKeyFrame() {
   RTC_DCHECK_RUN_ON(&module_thread_checker_);
 

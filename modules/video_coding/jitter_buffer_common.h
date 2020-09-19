@@ -21,6 +21,7 @@ static const float kNormalConvergeMultiplier = 0.2f;
 
 enum { kMaxNumberOfFrames = 300 };
 enum { kStartNumberOfFrames = 6 };
+//最多允许渲染的时间10s
 enum { kMaxVideoDelayMs = 10000 };
 enum { kPacketsPerFrameMultiplier = 5 };
 enum { kFastConvergeThreshold = 5 };

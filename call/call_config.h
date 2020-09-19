@@ -25,6 +25,7 @@ namespace webrtc {
 class AudioProcessing;
 class RtcEventLog;
 
+//呼叫配置
 struct CallConfig {
   explicit CallConfig(RtcEventLog* event_log);
   CallConfig(const CallConfig&);

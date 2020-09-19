@@ -32,6 +32,7 @@ class FrameDependenciesCalculator {
       default;
 
   // Calculates frame dependencies based on previous encoder buffer usage.
+  //根据以前的编码器缓冲区使用情况计算帧相关性。
   absl::InlinedVector<int64_t, 5> FromBuffersUsage(
       VideoFrameType frame_type,
       int64_t frame_id,

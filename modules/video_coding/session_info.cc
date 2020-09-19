@@ -415,6 +415,7 @@ size_t VCMSessionInfo::MakeDecodable() {
   }
   PacketIterator it = packets_.begin();
   // Make sure we remove the first NAL unit if it's not decodable.
+  //如果第一个NAL单元不可解码，我们一定要把它移走
   if ((*it).completeNALU == kNaluIncomplete || (*it).completeNALU == kNaluEnd) {
     PacketIterator nalu_end = FindNaluEnd(it);
     return_length += DeletePacketData(it, nalu_end);

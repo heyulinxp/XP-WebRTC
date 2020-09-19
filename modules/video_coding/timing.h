@@ -98,6 +98,7 @@ class VCMTiming {
 
   // Return current timing information. Returns true if the first frame has been
   // decoded, false otherwise.
+  //返回当前定时信息。如果第一帧已解码，则返回true，否则返回false。
   virtual bool GetTimings(int* max_decode_ms,
                           int* current_delay_ms,
                           int* target_delay_ms,

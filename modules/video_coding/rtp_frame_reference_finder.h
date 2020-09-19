@@ -51,6 +51,10 @@ class RtpFrameReferenceFinder {
   //  - We have too many stashed frames (determined by |kMaxStashedFrames|)
   //    so we drop this frame, or
   //  - It gets cleared by ClearTo, which also means we drop it.
+  //管理这个帧,直到:
+  //- 已有关于这个帧的所有references的信息,然后frame_callback_会被调用
+  //- 已有太多缓存的帧(超过了kMaxStashedFrames),那么丢弃这个帧
+  //- 被ClearTo声明为要cleared的,那么也丢弃它
   void ManageFrame(std::unique_ptr<RtpFrameObject> frame);
 
   // Notifies that padding has been received, which the reference finder

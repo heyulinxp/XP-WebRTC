@@ -111,9 +111,11 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
     index = seq_num % buffer_.size();
 
     // Packet buffer is still full since we were unable to expand the buffer.
+    //不能够扩展buffer空间的话
     if (buffer_[index] != nullptr) {
       // Clear the buffer, delete payload, and return false to signal that a
       // new keyframe is needed.
+      //清空buffer
       RTC_LOG(LS_WARNING) << "Clear PacketBuffer and request key frame.";
       ClearInternal();
       result.buffer_cleared = true;
@@ -140,20 +142,24 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
   return result;
 }
 
+//根据seqNum,清除掉一些packet
 void PacketBuffer::ClearTo(uint16_t seq_num) {
   MutexLock lock(&mutex_);
   // We have already cleared past this sequence number, no need to do anything.
+  //我们已经清除了这个序列号，不需要做任何事情。
   if (is_cleared_to_first_seq_num_ &&
       AheadOf<uint16_t>(first_seq_num_, seq_num)) {
     return;
   }
 
   // If the packet buffer was cleared between a frame was created and returned.
+  //如果一个packet buffer在frame被创建和返回之间被清空，则返回
   if (!first_packet_received_)
     return;
 
   // Avoid iterating over the buffer more than once by capping the number of
   // iterations to the |size_| of the buffer.
+  //通过将迭代次数限制为缓冲区的大小，避免在缓冲区上多次迭代。
   ++seq_num;
   size_t diff = ForwardDiff<uint16_t>(first_seq_num_, seq_num);
   size_t iterations = std::min(diff, buffer_.size());
@@ -167,6 +173,8 @@ void PacketBuffer::ClearTo(uint16_t seq_num) {
 
   // If |diff| is larger than |iterations| it means that we don't increment
   // |first_seq_num_| until we reach |seq_num|, so we set it here.
+  //如果|diff|大于|iterations|,
+  //这意味着我们在达到|seq_num|之前不会增加|first_seq_num_|，所以我们在这里设置它。
   first_seq_num_ = seq_num;
 
   is_cleared_to_first_seq_num_ = true;
@@ -263,6 +271,7 @@ bool PacketBuffer::PotentialNewFrame(uint16_t seq_num) const {
   return false;
 }
 
+//测试帧的所有数据包是否已到达，如果是，则返回数据包以创建帧。
 std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
     uint16_t seq_num) {
   std::vector<std::unique_ptr<PacketBuffer::Packet>> found_frames;
@@ -272,16 +281,19 @@ std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
 
     // If all packets of the frame is continuous, find the first packet of the
     // frame and add all packets of the frame to the returned packets.
+    //如果帧的所有包都是连续的，则找到帧的第一个包，并将该帧的所有包添加到返回的包中。
     if (buffer_[index]->is_last_packet_in_frame()) {
       uint16_t start_seq_num = seq_num;
 
       // Find the start index by searching backward until the packet with
       // the |frame_begin| flag is set.
+      //通过向后搜索找到起始索引，直到设置了带有|frame_begin|标志的包。
       int start_index = index;
       size_t tested_packets = 0;
       int64_t frame_timestamp = buffer_[start_index]->timestamp;
 
       // Identify H.264 keyframes by means of SPS, PPS, and IDR.
+      //通过SPS、PPS和IDR识别H.264关键帧。
       bool is_h264 = buffer_[start_index]->codec() == kVideoCodecH264;
       bool has_h264_sps = false;
       bool has_h264_pps = false;
@@ -419,6 +431,7 @@ void PacketBuffer::UpdateMissingPackets(uint16_t seq_num) {
 
     // Guard against inserting a large amount of missing packets if there is a
     // jump in the sequence number.
+    //如果序列号发生跳转，请防止插入大量丢失的数据包。
     if (AheadOf(old_seq_num, *newest_inserted_seq_num_))
       *newest_inserted_seq_num_ = old_seq_num;
 

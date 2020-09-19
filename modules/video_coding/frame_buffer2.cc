@@ -106,14 +106,17 @@ void FrameBuffer::StartWaitForNextFrameOnQueue() {
         RTC_DCHECK_RUN_ON(&callback_checker_);
         // If this task has not been cancelled, we did not get any new frames
         // while waiting. Continue with frame delivery.
+        //如果这个任务没有被取消，我们在等待时没有得到任何新的帧。继续帧传送。
         MutexLock lock(&mutex_);
         if (!frames_to_decode_.empty()) {
           // We have frames, deliver!
+          //有帧了,传送
           frame_handler_(absl::WrapUnique(GetNextFrame()), kFrameFound);
           CancelCallback();
           return TimeDelta::Zero();  // Ignored.
         } else if (clock_->TimeInMilliseconds() >= latest_return_time_ms_) {
           // We have timed out, signal this and stop repeating.
+          //超时了
           frame_handler_(nullptr, kTimeout);
           CancelCallback();
           return TimeDelta::Zero();  // Ignored.
@@ -121,18 +124,21 @@ void FrameBuffer::StartWaitForNextFrameOnQueue() {
           // If there's no frames to decode and there is still time left, it
           // means that the frame buffer was cleared between creation and
           // execution of this task. Continue waiting for the remaining time.
+          //如果没有frame,但是还有时间,那么继续等待
           int64_t wait_ms = FindNextFrame(clock_->TimeInMilliseconds());
           return TimeDelta::Millis(wait_ms);
         }
       });
 }
 
+//查找下一帧,返回的是等待时间wait_ms
 int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
   int64_t wait_ms = latest_return_time_ms_ - now_ms;
   frames_to_decode_.clear();
 
   // |last_continuous_frame_| may be empty below, but nullopt is smaller
   // than everything else and loop will immediately terminate as expected.
+  //frames只保存undecoded frames
   for (auto frame_it = frames_.begin();
        frame_it != frames_.end() && frame_it->first <= last_continuous_frame_;
        ++frame_it) {
@@ -143,6 +149,7 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
 
     EncodedFrame* frame = frame_it->second.frame.get();
 
+    //如果请求关键帧,但是此帧又不是关键帧,则continue
     if (keyframe_required_ && !frame->is_keyframe())
       continue;
 
@@ -159,6 +166,7 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
 
     // Only ever return all parts of a superframe. Therefore skip this
     // frame if it's not a beginning of a superframe.
+    //只返回超帧的所有部分。因此，如果这不是超帧的开始，请跳过这一帧。
     if (frame->inter_layer_predicted) {
       continue;
     }
@@ -177,6 +185,7 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
       }
       // Check if the next frame has some undecoded references other than
       // the previous frame in the same superframe.
+      //检查下一帧是否有一些未编码的引用，而不是同一超帧中的前一帧。
       size_t num_allowed_undecoded_refs =
           (next_frame_it->second.frame->inter_layer_predicted) ? 1 : 0;
       if (next_frame_it->second.num_missing_decodable >
@@ -184,6 +193,7 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
         break;
       }
       // All frames in the superframe should have the same timestamp.
+      //超帧中的所有帧都应该具有相同的时间戳。
       if (frame->Timestamp() != next_frame_it->second.frame->Timestamp()) {
         RTC_LOG(LS_WARNING) << "Frames in a single superframe have different"
                                " timestamps. Skipping undecodable superframe.";
@@ -195,6 +205,8 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
     // Check if the current superframe is complete.
     // TODO(bugs.webrtc.org/10064): consider returning all available to
     // decode frames even if the superframe is not complete yet.
+    //检查当前超帧是否完成。
+    //TODO:(bugs.webrtc.org/10064)：考虑返回所有可用于解码的帧，即使超帧尚未完成。
     if (!last_layer_completed) {
       continue;
     }
@@ -211,11 +223,14 @@ int64_t FrameBuffer::FindNextFrame(int64_t now_ms) {
     // enough and the stream has multiple spatial and temporal layers.
     // For multiple temporal layers it may cause non-base layer frames to be
     // skipped if they are late.
+    //这将导致在解码器解码速度不够快且流具有多个空间和时间层的情况下，帧缓冲区更倾向于高帧速率而不是高分辨率。
+    //对于多个临时层，如果非基本层帧延迟，则可能导致跳过它们。
     if (wait_ms < -kMaxAllowedFrameDelayMs)
       continue;
 
     break;
   }
+  //限制wait_ms在[latest_return_time_ms_ - now_ms, 0]之间
   wait_ms = std::min<int64_t>(wait_ms, latest_return_time_ms_ - now_ms);
   wait_ms = std::max<int64_t>(wait_ms, 0);
   return wait_ms;
@@ -235,6 +250,7 @@ EncodedFrame* FrameBuffer::GetNextFrame() {
   int64_t render_time_ms = first_frame->RenderTime();
   int64_t receive_time_ms = first_frame->ReceivedTime();
   // Gracefully handle bad RTP timestamps and render time issues.
+  //优雅地处理错误的RTP时间戳和呈现时间问题。
   if (HasBadRenderTiming(*first_frame, now_ms)) {
     jitter_estimator_.Reset();
     timing_->Reset();
@@ -307,6 +323,7 @@ EncodedFrame* FrameBuffer::GetNextFrame() {
 bool FrameBuffer::HasBadRenderTiming(const EncodedFrame& frame,
                                      int64_t now_ms) {
   // Assume that render timing errors are due to changes in the video stream.
+  //假设渲染计时错误是由于视频流中的更改引起的。
   int64_t render_time_ms = frame.RenderTimeMs();
   // Zero render time means render immediately.
   if (render_time_ms == 0) {
@@ -387,20 +404,25 @@ void FrameBuffer::CancelCallback() {
   callback_checker_.Detach();
 }
 
+//是否是完整的超帧
 bool FrameBuffer::IsCompleteSuperFrame(const EncodedFrame& frame) {
   if (frame.inter_layer_predicted) {
     // Check that all previous spatial layers are already inserted.
+    //检查是否已插入所有先前的空间图层。
     VideoLayerFrameId id = frame.id;
     RTC_DCHECK_GT(id.spatial_layer, 0);
     --id.spatial_layer;
     FrameMap::iterator prev_frame = frames_.find(id);
+	//找不到prev_frame,返回false
     if (prev_frame == frames_.end() || !prev_frame->second.frame)
       return false;
     while (prev_frame->second.frame->inter_layer_predicted) {
+      //找到头了,返回false
       if (prev_frame == frames_.begin())
         return false;
       --prev_frame;
       --id.spatial_layer;
+	  //prev_frame和id的内容不一样,返回false
       if (!prev_frame->second.frame ||
           prev_frame->first.picture_id != id.picture_id ||
           prev_frame->first.spatial_layer != id.spatial_layer) {
@@ -410,6 +432,7 @@ bool FrameBuffer::IsCompleteSuperFrame(const EncodedFrame& frame) {
   }
 
   if (!frame.is_last_spatial_layer) {
+  	//检查以下所有空间层是否已插入。
     // Check that all following spatial layers are already inserted.
     VideoLayerFrameId id = frame.id;
     ++id.spatial_layer;
@@ -439,6 +462,7 @@ int64_t FrameBuffer::InsertFrame(std::unique_ptr<EncodedFrame> frame) {
   MutexLock lock(&mutex_);
 
   const VideoLayerFrameId& id = frame->id;
+  //最新的连续picture的ID
   int64_t last_continuous_picture_id =
       !last_continuous_frame_ ? -1 : last_continuous_frame_->picture_id;
 
@@ -616,6 +640,10 @@ bool FrameBuffer::UpdateFrameInfoWithIncomingFrame(const EncodedFrame& frame,
   // For all other frames we will register a backwards reference to this |frame|
   // so that |num_missing_continuous| and |num_missing_decodable| can be
   // decremented as frames become continuous/are decoded.
+  //在这个函数中，我们确定这个|帧|必须成为连续的/可解码的依赖项。
+  //如果这个|帧|依赖的帧已经被解码，那么我们可以忽略这个依赖，因为它已经被实现了。
+  //对于所有其他帧，我们将注册对该帧的反向引用，以便当帧变得连续/解码时，
+  //| num_missing_continuous |和| num_missing_decodable |可以减少。
   struct Dependency {
     VideoLayerFrameId id;
     bool continuous;
@@ -623,12 +651,15 @@ bool FrameBuffer::UpdateFrameInfoWithIncomingFrame(const EncodedFrame& frame,
   std::vector<Dependency> not_yet_fulfilled_dependencies;
 
   // Find all dependencies that have not yet been fulfilled.
+  //查找所有尚未实现的依赖项。
   for (size_t i = 0; i < frame.num_references; ++i) {
     VideoLayerFrameId ref_key(frame.references[i], frame.id.spatial_layer);
     // Does |frame| depend on a frame earlier than the last decoded one?
+    //帧依赖于比上次解码的帧早的帧吗？
     if (last_decoded_frame && ref_key <= *last_decoded_frame) {
       // Was that frame decoded? If not, this |frame| will never become
       // decodable.
+      //那帧解码了吗？否则，此帧将永远无法解码。
       if (!decoded_frames_history_.WasDecoded(ref_key)) {
         int64_t now_ms = clock_->TimeInMilliseconds();
         if (last_log_non_decoded_ms_ + kLogNonDecodedIntervalMs < now_ms) {
@@ -650,6 +681,7 @@ bool FrameBuffer::UpdateFrameInfoWithIncomingFrame(const EncodedFrame& frame,
   }
 
   // Does |frame| depend on the lower spatial layer?
+  //这个帧是否依赖于较低的空间层?
   if (frame.inter_layer_predicted) {
     VideoLayerFrameId ref_key(frame.id.picture_id, frame.id.spatial_layer - 1);
     auto ref_info = frames_.find(ref_key);
@@ -706,7 +738,7 @@ void FrameBuffer::UpdateTimingFrameInfo() {
     stats_callback_->OnTimingFrameInfoUpdated(*info);
 }
 
-//清理掉一些frame和history
+//清理掉frame和history
 void FrameBuffer::ClearFramesAndHistory() {
   TRACE_EVENT0("webrtc", "FrameBuffer::ClearFramesAndHistory");
   if (stats_callback_) {
@@ -727,11 +759,14 @@ void FrameBuffer::ClearFramesAndHistory() {
 
 // TODO(philipel): Avoid the concatenation of frames here, by replacing
 // NextFrame and GetNextFrame with methods returning multiple frames.
+//通过用返回多个帧的方法替换NextFrame和GetNextFrame，可以避免帧的串联
+//结合和删除一些帧
 EncodedFrame* FrameBuffer::CombineAndDeleteFrames(
     const std::vector<EncodedFrame*>& frames) const {
   RTC_DCHECK(!frames.empty());
   EncodedFrame* first_frame = frames[0];
   EncodedFrame* last_frame = frames.back();
+  //统计总长度
   size_t total_length = 0;
   for (size_t i = 0; i < frames.size(); ++i) {
     total_length += frames[i]->size();
@@ -754,6 +789,7 @@ EncodedFrame* FrameBuffer::CombineAndDeleteFrames(
       last_frame->video_timing().receive_finish_ms;
 
   // Append all remaining frames to the first one.
+  //将所有剩余帧附加到第一个帧。
   for (size_t i = 1; i < frames.size(); ++i) {
     EncodedFrame* next_frame = frames[i];
     first_frame->SetSpatialLayerFrameSize(next_frame->id.spatial_layer,

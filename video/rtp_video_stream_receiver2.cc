@@ -577,6 +577,8 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
     // Only when we start to receive packets will we know what payload type
     // that will be used. When we know the payload type insert the correct
     // sps/pps into the tracker.
+    //只有当我们开始接收数据包时，我们才会知道将使用的有效负载类型。
+    //当我们知道有效载荷类型时，将正确的sps/PP插入跟踪器。
     if (packet->payload_type != last_payload_type_) {
       last_payload_type_ = packet->payload_type;
       InsertSpsPpsIntoTracker(packet->payload_type);
@@ -681,6 +683,7 @@ void RtpVideoStreamReceiver2::OnRtpPacket(const RtpPacketReceived& packet) {
   }
 }
 
+//请求关键帧
 void RtpVideoStreamReceiver2::RequestKeyFrame() {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
   // TODO(bugs.webrtc.org/10336): Allow the sender to ignore key frame requests
@@ -739,6 +742,7 @@ void RtpVideoStreamReceiver2::OnInsertedPacket(
     // packet. Document that assumption with the DCHECKs.
     RTC_DCHECK_EQ(frame_boundary, packet->is_first_packet_in_frame());
     if (packet->is_first_packet_in_frame()) {
+      //帧内第一packet
       first_packet = packet.get();
       max_nack_count = packet->times_nacked;
       min_recv_time = packet->packet_info.receive_time_ms();
@@ -795,6 +799,7 @@ void RtpVideoStreamReceiver2::OnInsertedPacket(
   }
 }
 
+//判断首帧是否是IDR，不是丢弃帧；是，调用ManageFrame。?
 void RtpVideoStreamReceiver2::OnAssembledFrame(
     std::unique_ptr<video_coding::RtpFrameObject> frame) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
@@ -813,11 +818,14 @@ void RtpVideoStreamReceiver2::OnAssembledFrame(
 
   // If frames arrive before a key frame, they would not be decodable.
   // In that case, request a key frame ASAP.
+  //如果帧在关键帧之前到达，则它们将不可解码。在这种情况下，请尽快请求关键帧。
   if (!has_received_frame_) {
     if (frame->FrameType() != VideoFrameType::kVideoFrameKey) {
       // |loss_notification_controller_|, if present, would have already
       // requested a key frame when the first packet for the non-key frame
       // had arrived, so no need to replicate the request.
+      //|loss_notification_controller_|,如果存在,
+      //控制器在非关键帧的第一个数据包到达时已经请求了一个密钥帧，因此不需要复制该请求。
       if (!loss_notification_controller_) {
         RequestKeyFrame();
       }

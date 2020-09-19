@@ -54,6 +54,7 @@ uint16_t VCMDecodingState::sequence_num() const {
   return sequence_num_;
 }
 
+//判断非空frame是否是旧的frame
 bool VCMDecodingState::IsOldFrame(const VCMFrameBuffer* frame) const {
   assert(frame != NULL);
   if (in_initial_state_)
@@ -71,6 +72,7 @@ bool VCMDecodingState::IsOldPacket(const VCMPacket* packet) const {
 //根据输入的frame设置state状态
 void VCMDecodingState::SetState(const VCMFrameBuffer* frame) {
   assert(frame != NULL && frame->GetHighSeqNum() >= 0);
+  //如果不是VP9灵活模式,则更新SyncState
   if (!UsingFlexibleMode(frame))
     UpdateSyncState(frame);
   sequence_num_ = static_cast<uint16_t>(frame->GetHighSeqNum());
@@ -79,7 +81,7 @@ void VCMDecodingState::SetState(const VCMFrameBuffer* frame) {
   temporal_id_ = frame->TemporalId();
   tl0_pic_id_ = frame->Tl0PicId();
 
-  //遍历Nalu信息
+  //遍历Nalu信息并存储
   for (const NaluInfo& nalu : frame->GetNaluInfos()) {
     if (nalu.type == H264::NaluType::kPps) {
       if (nalu.pps_id < 0) {
@@ -118,6 +120,7 @@ void VCMDecodingState::SetState(const VCMFrameBuffer* frame) {
     frame_decoded_[frame_index] = true;
   }
 
+  //setState调用过了,不是初始化状态了
   in_initial_state_ = false;
 }
 
@@ -141,12 +144,14 @@ bool VCMDecodingState::UpdateEmptyFrame(const VCMFrameBuffer* frame) {
   bool empty_packet = frame->GetHighSeqNum() == frame->GetLowSeqNum();
   if (in_initial_state_ && empty_packet) {
     // Drop empty packets as long as we are in the initial state.
+    //只要处于初始状态，就丢弃空数据包。
     return true;
   }
   if ((empty_packet && ContinuousSeqNum(frame->GetHighSeqNum())) ||
       ContinuousFrame(frame)) {
     // Continuous empty packets or continuous frames can be dropped if we
     // advance the sequence number.
+    //如果我们提前序列号，可以丢弃连续的空包或连续帧
     sequence_num_ = frame->GetHighSeqNum();
     time_stamp_ = frame->Timestamp();
     return true;
@@ -160,6 +165,7 @@ void VCMDecodingState::UpdateOldPacket(const VCMPacket* packet) {
   if (packet->timestamp == time_stamp_) {
     // Late packet belonging to the last decoded frame - make sure we update the
     // last decoded sequence number.
+    //属于最后解码帧的延迟包-请确保我们更新最后解码的序列号
     sequence_num_ = LatestSequenceNumber(packet->seqNum, sequence_num_);
   }
 }
@@ -223,13 +229,16 @@ bool VCMDecodingState::ContinuousFrame(const VCMFrameBuffer* frame) const {
   // A key frame is always considered continuous as it doesn't refer to any
   // frames and therefore won't introduce any errors even if prior frames are
   // missing.
+  //一个关键帧总是被认为是连续的，因为它不引用任何帧，因此即使之前的帧丢失也不会引入任何错误。
   if (frame->FrameType() == VideoFrameType::kVideoFrameKey &&
       HaveSpsAndPps(frame->GetNaluInfos())) {
     return true;
   }
   // When in the initial state we always require a key frame to start decoding.
+  //初始化状态,返回false
   if (in_initial_state_)
     return false;
+  //连续层,返回true
   if (ContinuousLayer(frame->TemporalId(), frame->Tl0PicId()))
     return true;
   // tl0picId is either not used, or should remain unchanged.
@@ -238,21 +247,25 @@ bool VCMDecodingState::ContinuousFrame(const VCMFrameBuffer* frame) const {
   // Base layers are not continuous or temporal layers are inactive.
   // In the presence of temporal layers, check for Picture ID/sequence number
   // continuity if sync can be restored by this frame.
+  //基底层不连续或时间层不活跃。在存在时间层的情况下，
+  //如果可以通过该帧恢复同步，则检查图片ID/序列号的连续性。
   if (!full_sync_ && !frame->LayerSync())
     return false;
   if (UsingPictureId(frame)) {
+  	//使用pictureId
     if (UsingFlexibleMode(frame)) {
       return ContinuousFrameRefs(frame);
     } else {
       return ContinuousPictureId(frame->PictureId());
     }
   } else {
+    //使用seqNum,取lowSeqNum
     return ContinuousSeqNum(static_cast<uint16_t>(frame->GetLowSeqNum())) &&
            HaveSpsAndPps(frame->GetNaluInfos());
   }
 }
 
-//判断是否是连续的pictureId，picture_id_+1==picture_id
+//非VP9灵活模式:判断是否是连续的pictureId，picture_id_+1==picture_id
 bool VCMDecodingState::ContinuousPictureId(int picture_id) const {
   int next_picture_id = picture_id_ + 1;
   if (picture_id < picture_id_) {
@@ -292,7 +305,7 @@ bool VCMDecodingState::ContinuousLayer(int temporal_id, int tl0_pic_id) const {
   return (static_cast<uint8_t>(tl0_pic_id_ + 1) == tl0_pic_id);
 }
 
-//判断是否是连续的参考帧？
+//VP9灵活模式:判断是否是连续的参考帧？
 bool VCMDecodingState::ContinuousFrameRefs(const VCMFrameBuffer* frame) const {
   uint8_t num_refs = frame->CodecSpecific()->codecSpecific.VP9.num_ref_pics;
   for (uint8_t r = 0; r < num_refs; ++r) {
@@ -327,11 +340,14 @@ bool VCMDecodingState::UsingFlexibleMode(const VCMFrameBuffer* frame) const {
 
 // TODO(philipel): change how check work, this check practially
 // limits the max p_diff to 64.
+//VP9使用
 bool VCMDecodingState::AheadOfFramesDecodedClearedTo(uint16_t index) const {
   // No way of knowing for sure if we are actually ahead of
   // frame_decoded_cleared_to_. We just make the assumption
   // that we are not trying to reference back to a very old
   // index, but instead are referencing a newer index.
+  //没有办法确定我们是否真的在解码的帧之前。
+  //我们只是假设我们不是试图引用一个非常旧的索引，而是引用一个更新的索引。
   uint16_t diff =
       index > frame_decoded_cleared_to_
           ? kFrameDecodedLength - (index - frame_decoded_cleared_to_)
@@ -366,6 +382,9 @@ bool VCMDecodingState::HaveSpsAndPps(const std::vector<NaluInfo>& nalus) const {
         }
         break;
       default: {
+	  	//对于此nalu的pps_id,先从new_pps里查找,如果找不到则从本地变量received_pps_里找,
+	  	//还是找不到则返回false.对于找到的needed_sps,看是否在new_sps或者received_sps_里存在,
+	  	//如果两边都不存在则返回false.否则返回true.
         int needed_sps = -1;
         auto pps_it = new_pps.find(nalu.pps_id);
         if (pps_it != new_pps.end()) {

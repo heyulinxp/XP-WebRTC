@@ -24,6 +24,7 @@
 namespace webrtc {
 
 // Used to indicate if a received packet contain a complete NALU (or equivalent)
+//VCMNalu完整状态
 enum VCMNaluCompleteness {
   kNaluUnset = 0,     // Packet has not been filled.
   kNaluComplete = 1,  // Packet can be decoded as is.

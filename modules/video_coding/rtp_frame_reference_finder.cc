@@ -39,6 +39,10 @@ RtpFrameReferenceFinder::RtpFrameReferenceFinder(
 RtpFrameReferenceFinder::~RtpFrameReferenceFinder() = default;
 
 //判断帧间参考关系。若当前帧的参考帧没到，继续等。
+//管理这个帧,直到:
+//- 已有关于这个帧的所有references的信息,然后frame_callback_会被调用
+//- 已有太多缓存的帧(超过了kMaxStashedFrames),那么丢弃这个帧
+//- 被ClearTo声明为要cleared的,那么也丢弃它
 void RtpFrameReferenceFinder::ManageFrame(
     std::unique_ptr<RtpFrameObject> frame) {
   // If we have cleared past this frame, drop it.
@@ -65,6 +69,7 @@ void RtpFrameReferenceFinder::ManageFrame(
   }
 }
 
+//重试缓存的帧，直到找不到更多完整的帧。
 void RtpFrameReferenceFinder::RetryStashedFrames() {
   bool complete_frame = false;
   do {
@@ -88,6 +93,7 @@ void RtpFrameReferenceFinder::RetryStashedFrames() {
   } while (complete_frame);
 }
 
+//交接frame数据,调用onCompleteFrame
 void RtpFrameReferenceFinder::HandOffFrame(
     std::unique_ptr<RtpFrameObject> frame) {
   frame->id.picture_id += picture_id_offset_;
@@ -98,6 +104,7 @@ void RtpFrameReferenceFinder::HandOffFrame(
   frame_callback_->OnCompleteFrame(std::move(frame));
 }
 
+//管理Frame的内部方法,针对不同类型的编码格式(VP8/VP9/Generic)选择方法
 RtpFrameReferenceFinder::FrameDecision
 RtpFrameReferenceFinder::ManageFrameInternal(RtpFrameObject* frame) {
   if (const absl::optional<RTPVideoHeader::GenericDescriptorInfo>&
@@ -130,11 +137,13 @@ void RtpFrameReferenceFinder::PaddingReceived(uint16_t seq_num) {
   RetryStashedFrames();
 }
 
+//清除包含早于|seq_num|的包的所有隐藏帧。
 void RtpFrameReferenceFinder::ClearTo(uint16_t seq_num) {
   cleared_to_seq_num_ = seq_num;
 
   auto it = stashed_frames_.begin();
   while (it != stashed_frames_.end()) {
+  	//cleared_to_seq_num_比frame的seqNum大,则erase
     if (AheadOf<uint16_t>(cleared_to_seq_num_, (*it)->first_seq_num())) {
       it = stashed_frames_.erase(it);
     } else {
