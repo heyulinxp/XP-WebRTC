@@ -94,12 +94,14 @@ void VCMTiming::SetJitterDelay(int jitter_delay_ms) {
   }
 }
 
+//更新当前的current_delay_ms_
 void VCMTiming::UpdateCurrentDelay(uint32_t frame_timestamp) {
   MutexLock lock(&mutex_);
   int target_delay_ms = TargetDelayInternal();
 
   if (current_delay_ms_ == 0) {
     // Not initialized, set current delay to target.
+    //初始化
     current_delay_ms_ = target_delay_ms;
   } else if (target_delay_ms != current_delay_ms_) {
     int64_t delay_diff_ms =
@@ -109,6 +111,9 @@ void VCMTiming::UpdateCurrentDelay(uint32_t frame_timestamp) {
     // limiting the change we can increase the delay in smaller steps, which
     // will be experienced as the video is played in slow motion. When lowering
     // the delay the video will be played at a faster pace.
+    //千万不要改变每秒超过100毫秒的延迟。如果我们改变延迟的步数太大，我们将得到明显的冻结。
+    //通过限制更改，我们可以在较小的步骤中增加延迟，这将在视频以慢动作播放时体验到。
+    //当降低延迟时，视频将以更快的速度播放。
     int64_t max_change_ms = 0;
     if (frame_timestamp < 0x0000ffff && prev_frame_timestamp_ > 0xffff0000) {
       // wrap
@@ -124,6 +129,7 @@ void VCMTiming::UpdateCurrentDelay(uint32_t frame_timestamp) {
     if (max_change_ms <= 0) {
       // Any changes less than 1 ms are truncated and will be postponed.
       // Negative change will be due to reordering and should be ignored.
+      //任何小于1毫秒的更改都将被截断并将被推迟。负变化将是由于重新排序，应忽略。
       return;
     }
     delay_diff_ms = std::max(delay_diff_ms, -max_change_ms);
@@ -134,6 +140,7 @@ void VCMTiming::UpdateCurrentDelay(uint32_t frame_timestamp) {
   prev_frame_timestamp_ = frame_timestamp;
 }
 
+//更新当前的current_delay_ms_
 void VCMTiming::UpdateCurrentDelay(int64_t render_time_ms,
                                    int64_t actual_decode_time_ms) {
   MutexLock lock(&mutex_);
@@ -165,6 +172,7 @@ void VCMTiming::StopDecodeTimer(int32_t decode_time_ms, int64_t now_ms) {
   ++num_decoded_frames_;
 }
 
+//新来了一个timestamp
 void VCMTiming::IncomingTimestamp(uint32_t time_stamp, int64_t now_ms) {
   MutexLock lock(&mutex_);
   ts_extrapolator_->Update(now_ms, time_stamp);
@@ -187,12 +195,14 @@ int64_t VCMTiming::RenderTimeMsInternal(uint32_t frame_timestamp,
   //时间外推
   int64_t estimated_complete_time_ms =
       ts_extrapolator_->ExtrapolateLocalTime(frame_timestamp);
+  //外推时间计算出错了吧
   if (estimated_complete_time_ms == -1) {
     estimated_complete_time_ms = now_ms;
   }
 
   // Make sure the actual delay stays in the range of |min_playout_delay_ms_|
   // and |max_playout_delay_ms_|.
+  //确保真实的delay时间在范围之间
   int actual_delay = std::max(current_delay_ms_, min_playout_delay_ms_);
   actual_delay = std::min(actual_delay, max_playout_delay_ms_);
   return estimated_complete_time_ms + actual_delay;
@@ -223,6 +233,7 @@ int VCMTiming::TargetVideoDelay() const {
   return TargetDelayInternal();
 }
 
+//计算目标延时，抖动延时+编码延时+渲染后所需时间
 int VCMTiming::TargetDelayInternal() const {
   return std::max(min_playout_delay_ms_,
                   jitter_delay_ms_ + RequiredDecodeTimeMs() + render_delay_ms_);

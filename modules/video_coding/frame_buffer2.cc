@@ -271,6 +271,7 @@ EncodedFrame* FrameBuffer::GetNextFrame() {
     decoded_frames_history_.InsertDecoded(frame_it->first, frame->Timestamp());
 
     // Remove decoded frame and all undecoded frames before it.
+    //删除解码帧和它之前的所有未编码帧。
     if (stats_callback_) {
       unsigned int dropped_frames = std::count_if(
           frames_.begin(), frame_it,
@@ -326,6 +327,7 @@ bool FrameBuffer::HasBadRenderTiming(const EncodedFrame& frame,
   //假设渲染计时错误是由于视频流中的更改引起的。
   int64_t render_time_ms = frame.RenderTimeMs();
   // Zero render time means render immediately.
+  //渲染时长0表示立即渲染。
   if (render_time_ms == 0) {
     return false;
   }
@@ -560,6 +562,7 @@ int64_t FrameBuffer::InsertFrame(std::unique_ptr<EncodedFrame> frame) {
 
     // Since we now have new continuous frames there might be a better frame
     // to return from NextFrame.
+    //因为我们现在有了新的连续帧，所以从NextFrame返回的帧可能更好。
     if (callback_queue_) {
       callback_queue_->PostTask([this] {
         MutexLock lock(&mutex_);
@@ -575,6 +578,7 @@ int64_t FrameBuffer::InsertFrame(std::unique_ptr<EncodedFrame> frame) {
   return last_continuous_picture_id;
 }
 
+//传播连续性
 void FrameBuffer::PropagateContinuity(FrameMap::iterator start) {
   TRACE_EVENT0("webrtc", "FrameBuffer::PropagateContinuity");
   RTC_DCHECK(start->second.continuous);
@@ -583,6 +587,7 @@ void FrameBuffer::PropagateContinuity(FrameMap::iterator start) {
   continuous_frames.push(start);
 
   // A simple BFS to traverse continuous frames.
+  //一种简单的遍历连续帧的BFS算法。
   while (!continuous_frames.empty()) {
     auto frame = continuous_frames.front();
     continuous_frames.pop();
@@ -593,6 +598,7 @@ void FrameBuffer::PropagateContinuity(FrameMap::iterator start) {
 
     // Loop through all dependent frames, and if that frame no longer has
     // any unfulfilled dependencies then that frame is continuous as well.
+    //依次往前遍历，把依赖项数量减少1，如果减少到0了，加入到continuous_frames中
     for (size_t d = 0; d < frame->second.dependent_frames.size(); ++d) {
       auto frame_ref = frames_.find(frame->second.dependent_frames[d]);
       RTC_DCHECK(frame_ref != frames_.end());
@@ -711,6 +717,7 @@ bool FrameBuffer::UpdateFrameInfoWithIncomingFrame(const EncodedFrame& frame,
   return true;
 }
 
+//更新抖动延迟，往外通知
 void FrameBuffer::UpdateJitterDelay() {
   TRACE_EVENT0("webrtc", "FrameBuffer::UpdateJitterDelay");
   if (!stats_callback_)
@@ -731,6 +738,7 @@ void FrameBuffer::UpdateJitterDelay() {
   }
 }
 
+//往外通知TimingFrameInfo
 void FrameBuffer::UpdateTimingFrameInfo() {
   TRACE_EVENT0("webrtc", "FrameBuffer::UpdateTimingFrameInfo");
   absl::optional<TimingFrameInfo> info = timing_->GetTimingFrameInfo();

@@ -76,7 +76,7 @@ bool VCMFrameBuffer::IsSessionComplete() const {
 }
 
 // Insert packet
-//插入packet
+//插入packet，返回插入结果VCMFrameBufferEnum
 VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
                                                 int64_t timeInMs,
                                                 const FrameData& frame_data) {
@@ -157,6 +157,8 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
   // onto the last RTP packet in each group of packets which make up a key
   // frame (I-frame or IDR frame in H.264 (AVC), or an IRAP picture in H.265
   // (HEVC)).
+  //MTSI客户端应将本条定义的有效载荷字节添加到构成关键帧（H.264（AVC）中的I帧或IDR帧，
+  //或H.265（HEVC）中的IRAP图片）的每组数据包中的最后一个RTP数据包上。
   if (packet.markerBit) {
     rotation_ = packet.video_header.rotation;
     content_type_ = packet.video_header.content_type;

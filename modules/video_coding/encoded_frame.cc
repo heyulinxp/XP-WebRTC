@@ -53,6 +53,7 @@ void VCMEncodedFrame::Reset() {
   timing_.flags = VideoSendTiming::kInvalid;
 }
 
+//复制Codec
 void VCMEncodedFrame::CopyCodecSpecific(const RTPVideoHeader* header) {
   if (header) {
     switch (header->codec) {

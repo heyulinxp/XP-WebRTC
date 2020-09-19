@@ -17,8 +17,10 @@ namespace webrtc {
 class RttMultExperiment {
  public:
   struct Settings {
+  	//抖动缓冲区的大小是由这个因素乘以估计的RTT。
     float rtt_mult_setting;  // Jitter buffer size is increased by this factor
                              // times the estimated RTT.
+    //抖动缓冲区大小的增加受此值的限制。
     float rtt_mult_add_cap_ms;  // Jitter buffer size increase is capped by this
                                 // value.
   };

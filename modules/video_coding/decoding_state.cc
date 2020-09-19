@@ -62,6 +62,7 @@ bool VCMDecodingState::IsOldFrame(const VCMFrameBuffer* frame) const {
   return !IsNewerTimestamp(frame->Timestamp(), time_stamp_);
 }
 
+//判断是否是旧的packet
 bool VCMDecodingState::IsOldPacket(const VCMPacket* packet) const {
   assert(packet != NULL);
   if (in_initial_state_)
@@ -100,6 +101,7 @@ void VCMDecodingState::SetState(const VCMFrameBuffer* frame) {
     }
   }
 
+  //如果是VP9灵活模式
   if (UsingFlexibleMode(frame)) {
     uint16_t frame_index = picture_id_ % kFrameDecodedLength;
     if (in_initial_state_) {
@@ -147,6 +149,9 @@ bool VCMDecodingState::UpdateEmptyFrame(const VCMFrameBuffer* frame) {
     //只要处于初始状态，就丢弃空数据包。
     return true;
   }
+  //empty_packet，这个frame的packet为空
+  //ContinuousSeqNum，frame的seqNum与decoding_state的是连续的
+  //ContinuousFrame，是连续的frame
   if ((empty_packet && ContinuousSeqNum(frame->GetHighSeqNum())) ||
       ContinuousFrame(frame)) {
     // Continuous empty packets or continuous frames can be dropped if we

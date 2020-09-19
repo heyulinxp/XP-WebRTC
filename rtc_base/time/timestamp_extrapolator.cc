@@ -62,6 +62,7 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
   if (tMs - _prevMs > 10e3) {
     // Ten seconds without a complete frame.
     // Reset the extrapolator
+    //十秒钟没有完整的画面。重置外推器。
     _rwLock->ReleaseLockExclusive();
     Reset(tMs);
     _rwLock->AcquireLockExclusive();
@@ -82,6 +83,7 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
     // Make an initial guess of the offset,
     // should be almost correct since tMs - _startMs
     // should about zero at this time.
+    //对偏移量做一个初步的猜测，应该是几乎正确的，因为tMs - _startMs此时应该大约为零。
     _w[1] = -_w[0] * tMs;
     _firstTimestamp = unwrapped_ts90khz;
     _firstAfterReset = false;
@@ -193,6 +195,7 @@ void TimestampExtrapolator::CheckForWrapArounds(uint32_t ts90khz) {
   _prevWrapTimestamp = ts90khz;
 }
 
+//探测delay change？
 bool TimestampExtrapolator::DelayChangeDetection(double error) {
   // CUSUM detection of sudden delay changes
   error = (error > 0) ? std::min(error, _accMaxError)

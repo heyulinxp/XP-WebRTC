@@ -101,6 +101,7 @@ void FrameList::CleanUpOldOrEmptyFrames(VCMDecodingState* decoding_state,
     if (oldest_frame->GetState() == kStateEmpty && size() > 1) {
       // This frame is empty, try to update the last decoded state and drop it
       // if successful.
+      //此帧为空，请尝试更新上次解码的状态，如果成功，请将其删除。
       remove_frame = decoding_state->UpdateEmptyFrame(oldest_frame);
     } else {
       remove_frame = decoding_state->IsOldFrame(oldest_frame);
@@ -354,6 +355,7 @@ void VCMJitterBuffer::ReleaseFrame(VCMEncodedFrame* frame) {
 //当前帧状态更新
 //当前解码状态更新
 //丢掉nacklist无用的包
+//输出：frame，frame_list，结果VCMFrameBufferEnum
 VCMFrameBufferEnum VCMJitterBuffer::GetFrame(const VCMPacket& packet,
                                              VCMFrameBuffer** frame,
                                              FrameList** frame_list) {
@@ -525,8 +527,9 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
           frame_event_->Set();
         }
       }
-
+      //是否需要重传
       *retransmitted = (frame->GetNackCount() > 0);
+      //根据是否连续判断加入decodable还是incomplete
       if (continuous) {
         decodable_frames_.InsertFrame(frame);
         FindAndInsertContinuousFrames(*frame);
@@ -538,6 +541,7 @@ VCMFrameBufferEnum VCMJitterBuffer::InsertPacket(const VCMPacket& packet,
     case kIncomplete: {
       if (frame->GetState() == kStateEmpty &&
           last_decoded_state_.UpdateEmptyFrame(frame)) {
+        //未完整状态，空帧然后能让buffer进行清空操作
         RecycleFrameBuffer(frame);
         return kNoError;
       } else {
@@ -666,11 +670,12 @@ void VCMJitterBuffer::SetNackSettings(size_t max_nack_list_size,
   max_incomplete_time_ms_ = max_incomplete_time_ms;
 }
 
-//不连续或者不完整的帧时长
+//返回不连续或者不完整的帧时长
 int VCMJitterBuffer::NonContinuousOrIncompleteDuration() {
   if (incomplete_frames_.empty()) {
     return 0;
   }
+  //incomplete列表里首项的时间作为开始时间，如果decodable非空，改用decodable的最后一项的时间
   uint32_t start_timestamp = incomplete_frames_.Front()->Timestamp();
   if (!decodable_frames_.empty()) {
     start_timestamp = decodable_frames_.Back()->Timestamp();
@@ -726,6 +731,7 @@ std::vector<uint16_t> VCMJitterBuffer::GetNackList(bool* request_key_frame) {
   if (TooLargeNackList()) {
     *request_key_frame = !HandleTooLargeNackList();
   }
+  //max_incomplete_time_ms_这个参数只在SetNackSettings的时候赋值
   if (max_incomplete_time_ms_ > 0) {
     int non_continuous_incomplete_duration =
         NonContinuousOrIncompleteDuration();
@@ -778,6 +784,7 @@ bool VCMJitterBuffer::UpdateNackList(uint16_t sequence_number) {
   }
   if (IsNewerSequenceNumber(sequence_number,
                             latest_received_sequence_number_)) {
+    //如果latest_received_sequence_number_ < sequence_number，说明seqNum有跳过的情况
     // Push any missing sequence numbers to the NACK list.
     //把缺失的seqNum补充到missing列表中
     for (uint16_t i = latest_received_sequence_number_ + 1;
@@ -795,6 +802,7 @@ bool VCMJitterBuffer::UpdateNackList(uint16_t sequence_number) {
       return false;
     }
   } else {
+    //如果latest_received_sequence_number_ > sequence_number，说明正常
     missing_sequence_numbers_.erase(sequence_number);
   }
   return true;
@@ -909,6 +917,7 @@ bool VCMJitterBuffer::RecycleFramesUntilKeyFrame() {
   } else if (decodable_frames_.empty()) {
     // All frames dropped. Reset the decoding state and clear missing sequence
     // numbers as we're starting fresh.
+    //所有帧都掉了。重新设置解码状态并清除丢失的序列号。
     last_decoded_state_.Reset();
     missing_sequence_numbers_.clear();
   }
@@ -918,15 +927,18 @@ bool VCMJitterBuffer::RecycleFramesUntilKeyFrame() {
 //更新每一帧的平均packet数量
 void VCMJitterBuffer::UpdateAveragePacketsPerFrame(int current_number_packets) {
   if (frame_counter_ > kFastConvergeThreshold) {
+    //数量多时，正常收敛
     average_packets_per_frame_ =
         average_packets_per_frame_ * (1 - kNormalConvergeMultiplier) +
         current_number_packets * kNormalConvergeMultiplier;
   } else if (frame_counter_ > 0) {
+    //数量少时，快速收敛
     average_packets_per_frame_ =
         average_packets_per_frame_ * (1 - kFastConvergeMultiplier) +
         current_number_packets * kFastConvergeMultiplier;
     frame_counter_++;
   } else {
+    //初始化
     average_packets_per_frame_ = current_number_packets;
     frame_counter_++;
   }

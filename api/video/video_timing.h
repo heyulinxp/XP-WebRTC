@@ -48,28 +48,35 @@ struct VideoSendTiming {
 // timestamps for a lifetime of that specific frame. Reported as a string via
 // GetStats(). Only frame which took the longest between two GetStats calls is
 // reported.
+//用于报告“定时帧”的精确计时。包含该特定帧的生存期内的所有重要时间戳。
+//通过GetStats（）报告为字符串。只报告两次GetStats调用之间花费最长时间的帧。
 struct TimingFrameInfo {
   TimingFrameInfo();
 
   // Returns end-to-end delay of a frame, if sender and receiver timestamps are
   // synchronized, -1 otherwise.
+  //如果发送方和接收方时间戳同步，则返回帧的端到端延迟，否则返回-1。
   int64_t EndToEndDelay() const;
 
   // Returns true if current frame took longer to process than |other| frame.
   // If other frame's clocks are not synchronized, current frame is always
   // preferred.
+  //如果当前帧的处理时间比其他帧长，则返回true。如果其他帧的时钟不同步，则始终首选当前帧。
   bool IsLongerThan(const TimingFrameInfo& other) const;
 
   // Returns true if flags are set to indicate this frame was marked for tracing
   // due to the size being outside some limit.
+  //如果将标志设置为指示此帧由于大小超出某个限制而被标记为跟踪，则返回true。
   bool IsOutlier() const;
 
-  // Returns true if flags are set to indicate this frame was marked fro tracing
+  // Returns true if flags are set to indicate this frame was marked for tracing
   // due to cyclic timer.
+  //如果将标志设置为指示由于循环计时器而将此帧标记为不进行跟踪，则返回true。
   bool IsTimerTriggered() const;
 
   // Returns true if the timing data is marked as invalid, in which case it
   // should be ignored.
+  //如果计时数据标记为无效，则返回true，在这种情况下应忽略它。
   bool IsInvalid() const;
 
   std::string ToString() const;
