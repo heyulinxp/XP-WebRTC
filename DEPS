@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'b0398ace4b7eeb0ed413de4d075e0306de7211cd',
+  'chromium_revision': 'f294a94cc453b3b881ece43a34dcefe12ca97e38',
 
   # This can be overridden, e.g. with custom_vars, to download a nonstandard
   # Xcode version in build/mac_toolchain.py
@@ -22,9 +22,9 @@ deps = {
   # TODO(kjellander): Move this to be Android-only once the libevent dependency
   # in base/third_party/libevent is solved.
   'src/base':
-    'https://chromium.googlesource.com/chromium/src/base@2bc64ef15eb049f0463dcb685ee279b9c594d5c3',
+    'https://chromium.googlesource.com/chromium/src/base@ad243aa8a6ad7de4a9ac8521c95edecb15065a13',
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@73be3024385f45107a421162c7196e639c0602b7',
+    'https://chromium.googlesource.com/chromium/src/build@ac22062b465485d3e1196ae9c506b3617cc16fb5',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@3ff4f5027b4b81a6c9c36d64d71444f2709a4896',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -33,13 +33,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@7ecdca2225a4c0b0b36d778a0abdf03221303873',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@8eb749d5cb1e6db84de16759679d5b0b15d263f8',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@2444860bdd4441e08e0a9762b9fe2789d45e8590',
+    'https://chromium.googlesource.com/chromium/src/testing@b73b3066096bc22d2cc3338b3f0d4811078929e5',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@533fbd1f56c92e073798cc4e61180a6e40897464',
+    'https://chromium.googlesource.com/chromium/src/third_party@5dc5a4a45df9592baa8e8c5f896006d9193d8e45',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -130,14 +130,14 @@ deps = {
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@e3a62dc5502dec6ab451061769d7efaf5b7ffba8',
   'src/third_party/catapult':
-    'https://chromium.googlesource.com/catapult.git@534924ed9ee5671b616f716581d21e765555f0a5',
+    'https://chromium.googlesource.com/catapult.git@0de9874718993c990ed13321720d6065a2f7dcaa',
   'src/third_party/ced/src': {
     'url': 'https://chromium.googlesource.com/external/github.com/google/compact_enc_det.git@ba412eaaacd3186085babcd901679a48863c7dd5',
   },
   'src/third_party/colorama/src':
     'https://chromium.googlesource.com/external/colorama.git@799604a1041e9b3bc5d2789ecbd7e8db2e18e6b8',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@a1e15498cd2dd4b2cc8826e65dbee2c2b0b63aa9',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@d949c910de8c04a1cfaa99a937eb05ba30185c36',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@e61dd757a8c09139c03ffa2ef285d5678909370a',
   'src/third_party/findbugs': {
@@ -198,7 +198,7 @@ deps = {
   'src/third_party/libFuzzer/src':
     'https://chromium.googlesource.com/chromium/llvm-project/compiler-rt/lib/fuzzer.git@debe7d2d1982e540fbd6bd78604bf001753f9e74',
   'src/third_party/libjpeg_turbo':
-    'https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git@8ca19625de302b0af290e3e0cdeff24a1c272d39',
+    'https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git@d5148db386ceb4a608058320071cbed890bd6ad2',
   'src/third_party/libsrtp':
     'https://chromium.googlesource.com/chromium/deps/libsrtp.git@650611720ecc23e0e6b32b0e3100f8b4df91696c',
   'src/third_party/libaom/source/libaom':
@@ -208,9 +208,9 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    'https://android.googlesource.com/platform/external/perfetto.git@bef393a5a340a4d6303b263cba7adee98372ab7f',
+    'https://android.googlesource.com/platform/external/perfetto.git@d62add52c69b711093bf5c92197d30badb000851',
   'src/third_party/libvpx/source/libvpx':
-    'https://chromium.googlesource.com/webm/libvpx.git@53747dfe65eaf670a7192f55117f3bf1e0280743',
+    'https://chromium.googlesource.com/webm/libvpx.git@97356acb50e212fcfb7c91715718ec70953f780c',
   'src/third_party/libyuv':
     'https://chromium.googlesource.com/libyuv/libyuv.git@6afd9becdf58822b1da6770598d8597c583ccfad',
   'src/third_party/lss': {
@@ -258,16 +258,16 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/third_party/usrsctp/usrsctplib':
-    'https://chromium.googlesource.com/external/github.com/sctplab/usrsctp@a8c51df76caae94254b1e59999405f739467490e',
+    'https://chromium.googlesource.com/external/github.com/sctplab/usrsctp@995c0b84414466d77d52011e5b572cbe213b770a',
   # Dependency used by libjpeg-turbo.
   'src/third_party/yasm/binaries': {
     'url': 'https://chromium.googlesource.com/chromium/deps/yasm/binaries.git@52f9b3f4b0aa06da24ef8b123058bb61ee468881',
     'condition': 'checkout_win',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@81ed7962612cfc11b974a0f476c8001face66ff3',
+    'https://chromium.googlesource.com/chromium/src/tools@232b029ea58b6d6214b73e1fc50f228d5fac80b3',
   'src/tools/swarming_client':
-    'https://chromium.googlesource.com/infra/luci/client-py.git@4c095d04179dc725a300085ae21fe3b79900d072',
+    'https://chromium.googlesource.com/infra/luci/client-py.git@44c13d73156581ea09b9389001e58c23a4b8d70a',
 
   'src/third_party/accessibility_test_framework': {
       'packages': [
@@ -487,15 +487,15 @@ deps = {
       'packages': [
         {
           'package': 'infra/tools/luci/isolate/${{platform}}',
-          'version': 'git_revision:18502e6a01811b0c2dd2a0250e81bd82e47d2c2d',
+          'version': 'git_revision:83c3df996b224edf5061840744395707a0e513e7',
         },
         {
           'package': 'infra/tools/luci/isolated/${{platform}}',
-          'version': 'git_revision:18502e6a01811b0c2dd2a0250e81bd82e47d2c2d',
+          'version': 'git_revision:83c3df996b224edf5061840744395707a0e513e7',
         },
         {
           'package': 'infra/tools/luci/swarming/${{platform}}',
-          'version': 'git_revision:18502e6a01811b0c2dd2a0250e81bd82e47d2c2d',
+          'version': 'git_revision:83c3df996b224edf5061840744395707a0e513e7',
         },
       ],
       'dep_type': 'cipd',
@@ -871,17 +871,6 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/android_deps/libs/androidx_legacy_legacy_support_core_utils',
-              'version': 'version:1.0.0-cr0',
-          },
-      ],
-      'condition': 'checkout_android',
-      'dep_type': 'cipd',
-  },
-
-  'src/third_party/android_deps/libs/androidx_legacy_legacy_support_v13': {
-      'packages': [
-          {
-              'package': 'chromium/third_party/android_deps/libs/androidx_legacy_legacy_support_v13',
               'version': 'version:1.0.0-cr0',
           },
       ],
@@ -3116,7 +3105,8 @@ hooks = [
     'name': 'mac_toolchain',
     'pattern': '.',
     'condition': 'checkout_mac',
-    'action': ['python', 'src/build/mac_toolchain.py'],
+    'action': ['python', 'src/build/mac_toolchain.py',
+               '--xcode-version', Var('mac_xcode_version')],
   },
   {
     # Note: On Win, this should run after win_toolchain, as it may use it.
