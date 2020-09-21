@@ -22,6 +22,7 @@ VCMRttFilter::VCMRttFilter()
     : _filtFactMax(35),
       _jumpStdDevs(2.5),
       _driftStdDevs(3.5),
+      //kMaxDriftJumpCount=5
       _detectThreshold(kMaxDriftJumpCount) {
   Reset();
 }
@@ -79,6 +80,7 @@ void VCMRttFilter::Update(int64_t rttMs) {
   }
   double oldAvg = _avgRtt;
   double oldVar = _varRtt;
+  //按比例估计新的
   _avgRtt = filtFactor * _avgRtt + (1 - filtFactor) * rttMs;
   _varRtt = filtFactor * _varRtt +
             (1 - filtFactor) * (rttMs - _avgRtt) * (rttMs - _avgRtt);
@@ -90,8 +92,10 @@ void VCMRttFilter::Update(int64_t rttMs) {
   }
 }
 
+//检测跳动，平均值_avgRtt与现在的值rttMs的比较，大于2.5倍中误差
 bool VCMRttFilter::JumpDetection(int64_t rttMs) {
   double diffFromAvg = _avgRtt - rttMs;
+  //_jumpStdDevs=2.5
   if (fabs(diffFromAvg) > _jumpStdDevs * sqrt(_varRtt)) {
     int diffSign = (diffFromAvg >= 0) ? 1 : -1;
     int jumpCountSign = (_jumpCount >= 0) ? 1 : -1;
@@ -99,6 +103,7 @@ bool VCMRttFilter::JumpDetection(int64_t rttMs) {
       // Since the signs differ the samples currently
       // in the buffer is useless as they represent a
       // jump in a different direction.
+      //由于符号不同，缓冲区中当前的样本是无用的，因为它们代表了一个不同方向的跳跃。
       _jumpCount = 0;
     }
     if (abs(_jumpCount) < kMaxDriftJumpCount) {
@@ -107,11 +112,14 @@ bool VCMRttFilter::JumpDetection(int64_t rttMs) {
       // The sign of the diff is used for updating the counter since
       // we want to use the same buffer for keeping track of when
       // the RTT jumps down and up.
+      //更新用于短时间统计的缓冲区。
+      //diff的符号用于更新计数器，因为我们希望使用相同的缓冲区来跟踪RTT何时上下跳转。
       _jumpBuf[abs(_jumpCount)] = rttMs;
       _jumpCount += diffSign;
     }
     if (abs(_jumpCount) >= _detectThreshold) {
       // Detected an RTT jump
+      //检测到RTT跳转
       ShortRttFilter(_jumpBuf, abs(_jumpCount));
       _filtFactCount = _detectThreshold + 1;
       _jumpCount = 0;
@@ -125,6 +133,7 @@ bool VCMRttFilter::JumpDetection(int64_t rttMs) {
 }
 
 bool VCMRttFilter::DriftDetection(int64_t rttMs) {
+  //_driftStdDevs=3.5
   if (_maxRtt - _avgRtt > _driftStdDevs * sqrt(_varRtt)) {
     if (_driftCount < kMaxDriftJumpCount) {
       // Update the buffer used for the short time
@@ -144,6 +153,7 @@ bool VCMRttFilter::DriftDetection(int64_t rttMs) {
   return true;
 }
 
+//更新最大值_maxRtt和平均值_avgRtt
 void VCMRttFilter::ShortRttFilter(int64_t* buf, uint32_t length) {
   if (length == 0) {
     return;
@@ -159,6 +169,7 @@ void VCMRttFilter::ShortRttFilter(int64_t* buf, uint32_t length) {
   _avgRtt = _avgRtt / static_cast<double>(length);
 }
 
+//对外返回结果
 int64_t VCMRttFilter::RttMs() const {
   return static_cast<int64_t>(_maxRtt + 0.5);
 }

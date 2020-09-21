@@ -39,6 +39,8 @@ namespace webrtc {
 // SharedModuleThread supports a callback that is issued when only one reference
 // remains, which is used to indicate to the original owner that the thread may
 // be discarded.
+//在同一个工作线程上构造的多个调用实例之间共享模块进程线程的一种受限方法（对等连接工厂保证这样做）。
+//SharedModuleThread支持在只剩下一个引用时发出的回调，用于向原始所有者指示线程可能被丢弃。
 class SharedModuleThread : public rtc::RefCountInterface {
  protected:
   SharedModuleThread(std::unique_ptr<ProcessThread> process_thread,
@@ -48,6 +50,7 @@ class SharedModuleThread : public rtc::RefCountInterface {
 
  public:
   // Allows injection of an externally created process thread.
+  //允许注入外部创建的进程线程。
   static rtc::scoped_refptr<SharedModuleThread> Create(
       std::unique_ptr<ProcessThread> process_thread,
       std::function<void()> on_one_ref_remaining);
@@ -67,6 +70,8 @@ class SharedModuleThread : public rtc::RefCountInterface {
 // A Call instance can contain several send and/or receive streams. All streams
 // are assumed to have the same remote endpoint and will share bitrate estimates
 // etc.
+//一个调用实例可以包含多个发送和/或接收流。假设所有流都具有相同的远程端点，
+//并且将共享比特率估计值等。
 class Call {
  public:
   using Config = CallConfig;
@@ -120,6 +125,8 @@ class Call {
   // In order for a created VideoReceiveStream to be aware that it is
   // protected by a FlexfecReceiveStream, the latter should be created before
   // the former.
+  //为了使已创建的VideoReceiveStream知道它受FlexfecReceiveStream保护，
+  //应在FlexfecReceiveStream之前创建后者。
   virtual FlexfecReceiveStream* CreateFlexfecReceiveStream(
       const FlexfecReceiveStream::Config& config) = 0;
   
@@ -129,11 +136,14 @@ class Call {
   // When a resource is overused, the Call will try to reduce the load on the
   // sysem, for example by reducing the resolution or frame rate of encoded
   // streams.
+  //当资源被过度使用时，Call将尝试减少系统的负载，例如通过降低编码流的分辨率或帧速率。
   virtual void AddAdaptationResource(rtc::scoped_refptr<Resource> resource) = 0;
 
   // All received RTP and RTCP packets for the call should be inserted to this
   // PacketReceiver. The PacketReceiver pointer is valid as long as the
   // Call instance exists.
+  //所有接收到的用于Call的RTP和RTCP数据包都应插入到此PacketReceiver。
+  //只要Call实例存在，PacketReceiver指针就有效。
   virtual PacketReceiver* Receiver() = 0;
 
   // This is used to access the transport controller send instance owned by
@@ -141,15 +151,21 @@ class Call {
   // reasons. (for instance  variants of call tests are built on this assumtion)
   // TODO(srte): Move ownership of transport controller send out of Call and
   // remove this method interface.
+  //这用于访问Call拥有的传输控制器send实例。由于遗留原因，发送传输控制器当前由Call拥有。
+  //（例如，调用测试的变体是基于此假设构建的）
+  //TODO（srte）：将传输控制器的所有权移出调用并删除此方法接口。
   virtual RtpTransportControllerSendInterface* GetTransportControllerSend() = 0;
 
   // Returns the call statistics, such as estimated send and receive bandwidth,
   // pacing delay, etc.
+  //返回呼叫统计信息，例如估计的发送和接收带宽、速度调整延迟等。
   virtual Stats GetStats() const = 0;
 
   // TODO(skvlad): When the unbundled case with multiple streams for the same
   // media type going over different networks is supported, track the state
   // for each stream separately. Right now it's global per media type.
+  //TODO（skvlad）：当支持同一媒体类型的多个流通过不同网络的未绑定情况时，
+  //请分别跟踪每个流的状态。现在它是全局的每种媒体类型。
   virtual void SignalChannelNetworkState(MediaType media,
                                          NetworkState state) = 0;
 

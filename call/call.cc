@@ -1318,19 +1318,22 @@ PacketReceiver::DeliveryStatus Call::DeliverRtcp(MediaType media_type,
   return rtcp_delivered ? DELIVERY_OK : DELIVERY_PACKET_ERROR;
 }
 
+//传输rtp包
 PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,
                                                 rtc::CopyOnWriteBuffer packet,
                                                 int64_t packet_time_us) {
   TRACE_EVENT0("webrtc", "Call::DeliverRtp");
 
   RtpPacketReceived parsed_packet;
+  //解码
   if (!parsed_packet.Parse(std::move(packet)))
     return DELIVERY_PACKET_ERROR;
-
+  //设置到达时间
   if (packet_time_us != -1) {
     if (receive_time_calculator_) {
       // Repair packet_time_us for clock resets by comparing a new read of
       // the same clock (TimeUTCMicros) to a monotonic clock reading.
+      //通过比较同一时钟（TimeUTCMicros）的新读数与单调时钟读数，修复时钟重置的数据包。
       packet_time_us = receive_time_calculator_->ReconcileReceiveTimes(
           packet_time_us, rtc::TimeUTCMicros(), clock_->TimeInMicroseconds());
     }
@@ -1342,6 +1345,8 @@ PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,
   // We might get RTP keep-alive packets in accordance with RFC6263 section 4.6.
   // These are empty (zero length payload) RTP packets with an unsignaled
   // payload type.
+  //我们可以根据RFC6263第4.6节得到RTP保持活动包。
+  //这些是空的（零长度有效载荷）RTP数据包，具有无符号有效载荷类型。
   const bool is_keep_alive_packet = parsed_packet.payload_size() == 0;
 
   RTC_DCHECK(media_type == MediaType::AUDIO || media_type == MediaType::VIDEO ||
@@ -1356,15 +1361,21 @@ PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,
     // But deregistering in the |receive_rtp_config_| map is. So by not passing
     // the packet on to demuxing in this case, we prevent incoming packets to be
     // passed on via the demuxer to a receive stream which is being torned down.
+    //接收流的销毁（包括从RtpDemuxer注销）不受|worker_thread_|的保护。
+    //但在|receive_rtp_config_| map映射中注销是。
+    //因此，在这种情况下，通过不将数据包传递到分接，
+    //我们可以防止传入的数据包通过解复用器传递到正在被销毁的接收流。
     return DELIVERY_UNKNOWN_SSRC;
   }
 
   parsed_packet.IdentifyExtensions(it->second.extensions);
-
+  //更新bwe，brandwith estimatoe
   NotifyBweOfReceivedPacket(parsed_packet, media_type);
 
   // RateCounters expect input parameter as int, save it as int,
   // instead of converting each time it is passed to RateCounter::Add below.
+  //RateCounters期望输入参数为int，将其另存为int，
+  //而不是每次将其传递给RateCounter:：Add below时进行转换。
   int length = static_cast<int>(parsed_packet.size());
   if (media_type == MediaType::AUDIO) {
     if (audio_receiver_controller_.OnRtpPacket(parsed_packet)) {
@@ -1397,6 +1408,7 @@ PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,
   return DELIVERY_UNKNOWN_SSRC;
 }
 
+//传递packet，看是rtcp还是rtp
 PacketReceiver::DeliveryStatus Call::DeliverPacket(
     MediaType media_type,
     rtc::CopyOnWriteBuffer packet,

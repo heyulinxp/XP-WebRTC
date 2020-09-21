@@ -17,10 +17,13 @@ namespace webrtc {
 namespace {
 
 // The first kIgnoredSampleCount samples will be ignored.
+//忽略前5个数据
 const int kIgnoredSampleCount = 5;
 // Return the |kPercentile| value in RequiredDecodeTimeMs().
+//95%
 const float kPercentile = 0.95f;
 // The window size in ms.
+//10秒数据窗口
 const int64_t kTimeLimitMs = 10000;
 
 }  // anonymous namespace
@@ -31,6 +34,7 @@ VCMCodecTimer::~VCMCodecTimer() = default;
 
 void VCMCodecTimer::AddTiming(int64_t decode_time_ms, int64_t now_ms) {
   // Ignore the first |kIgnoredSampleCount| samples.
+  //刚开始的忽略
   if (ignored_sample_count_ < kIgnoredSampleCount) {
     ++ignored_sample_count_;
     return;

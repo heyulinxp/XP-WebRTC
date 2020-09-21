@@ -49,6 +49,7 @@ VCMJitterEstimator::VCMJitterEstimator(Clock* clock)
       _rttFilter(),
       fps_counter_(30),  // TODO(sprang): Use an estimator with limit based on
                          // time, rather than number of samples.
+      //默认3.5
       time_deviation_upper_bound_(
           JitterUpperBoundExperiment::GetUpperBoundSigmas().value_or(
               kDefaultMaxTimestampDeviationInSigmas)),
@@ -118,6 +119,7 @@ void VCMJitterEstimator::Reset() {
 }
 
 // Updates the estimates with the new measurements.
+//用新的测量值更新估计值。
 void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
                                         uint32_t frameSizeBytes,
                                         bool incompleteFrame /* = false */) {
@@ -125,6 +127,7 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   	//空帧返回
     return;
   }
+  //变化值，当前帧大小-以前的帧大小
   int deltaFS = frameSizeBytes - _prevFrameSize;
   if (_fsCount < kFsAccuStartupSamples) {
   	//前5个，积累
@@ -138,13 +141,17 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   }
   //要么是不完整的frame，要么当前frameSizeBytes比平均值_avgFrameSize大？
   if (!incompleteFrame || frameSizeBytes > _avgFrameSize) {
+    //平均帧大小=0.97*平均值+0.03*当前帧大小。
     double avgFrameSize = _phi * _avgFrameSize + (1 - _phi) * frameSizeBytes;
     if (frameSizeBytes < _avgFrameSize + 2 * sqrt(_varFrameSize)) {
       // Only update the average frame size if this sample wasn't a key frame.
+      //仅当此示例不是关键帧时更新平均帧大小。
       _avgFrameSize = avgFrameSize;
     }
     // Update the variance anyway since we want to capture cases where we only
     // get key frames.
+    //无论如何，更新方差，因为我们想捕捉只得到关键帧的情况。
+    //更新公式：新方差=Math.max(0.97*旧方差+0.03*(当前-平均帧大小)^2, 1)
     _varFrameSize = VCM_MAX(
         _phi * _varFrameSize + (1 - _phi) * (frameSizeBytes - avgFrameSize) *
                                    (frameSizeBytes - avgFrameSize),
@@ -152,6 +159,8 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   }
 
   // Update max frameSize estimate.
+  //更新最大帧大小估计。
+  //更新公式：新max=Math.max(0.9999*当前的max, 当前的帧大小)
   _maxFrameSize =
       VCM_MAX(_psi * _maxFrameSize, static_cast<double>(frameSizeBytes));
 
@@ -162,6 +171,8 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   _prevFrameSize = frameSizeBytes;
 
   // Cap frameDelayMS based on the current time deviation noise.
+  //基于当前时间偏差噪声的Cap frameDelayMS。
+  //max_time_deviation_ms = (int)(3.5*2+0.5) = 7
   int64_t max_time_deviation_ms =
       static_cast<int64_t>(time_deviation_upper_bound_ * sqrt(_varNoise) + 0.5);
   frameDelayMS = std::max(std::min(frameDelayMS, max_time_deviation_ms),
@@ -175,6 +186,7 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   //即使从延迟的角度来看是一个极端的异常值，如果帧大小也很大，则可能是由于不正确的线斜率造成的。
   double deviation = DeviationFromExpectedDelay(frameDelayMS, deltaFS);
 
+  //_numStdDevDelayOutlier=15，_varNoise=4，_numStdDevFrameSizeOutlier=3，_varFrameSize=100
   if (fabs(deviation) < _numStdDevDelayOutlier * sqrt(_varNoise) ||
       frameSizeBytes >
           _avgFrameSize + _numStdDevFrameSizeOutlier * sqrt(_varFrameSize)) {
@@ -220,6 +232,7 @@ void VCMJitterEstimator::FrameNacked() {
 
 // Updates Kalman estimate of the channel.
 // The caller is expected to sanity check the inputs.
+//更新信道的Kalman估计。调用者应该检查输入是否正常。
 void VCMJitterEstimator::KalmanEstimateChannel(int64_t frameDelayMS,
                                                int32_t deltaFSBytes) {
   double Mh[2];
@@ -306,6 +319,7 @@ double VCMJitterEstimator::DeviationFromExpectedDelay(
 
 // Estimates the random jitter by calculating the variance of the sample
 // distance from the line given by theta.
+//通过计算样本距离θ给出的直线距离的方差来估计随机抖动。
 void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
                                               bool incompleteFrame) {
   uint64_t now = clock_->TimeInMicroseconds();
@@ -321,17 +335,20 @@ void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
   double alpha =
       static_cast<double>(_alphaCount - 1) / static_cast<double>(_alphaCount);
   _alphaCount++;
+  //不超过300
   if (_alphaCount > _alphaCountMax)
     _alphaCount = _alphaCountMax;
 
   // In order to avoid a low frame rate stream to react slower to changes,
   // scale the alpha weight relative a 30 fps stream.
+  //为了避免低帧速率流对变化反应较慢，请相对于30 fps流缩放alpha权重。
   double fps = GetFrameRate();
   if (fps > 0.0) {
     double rate_scale = 30.0 / fps;
     // At startup, there can be a lot of noise in the fps estimate.
     // Interpolate rate_scale linearly, from 1.0 at sample #1, to 30.0 / fps
     // at sample #kStartupDelaySamples.
+    //在启动时，fps估计中可能有很多噪声。线性插值速率刻度，从采样1的1.0到采样kStartupDelaySamples（30）的30.0/fps。
     if (_alphaCount < kStartupDelaySamples) {
       rate_scale =
           (_alphaCount * rate_scale + (kStartupDelaySamples - _alphaCount)) /
@@ -363,6 +380,7 @@ double VCMJitterEstimator::NoiseThreshold() const {
 }
 
 // Calculates the current jitter estimate from the filtered estimates.
+//根据过滤后的估计值计算当前抖动估计值。
 double VCMJitterEstimator::CalculateEstimate() {
   double ret = _theta[0] * (_maxFrameSize - _avgFrameSize) + NoiseThreshold();
 
@@ -391,9 +409,12 @@ void VCMJitterEstimator::UpdateRtt(int64_t rttMs) {
 
 // Returns the current filtered estimate if available,
 // otherwise tries to calculate an estimate.
+//返回当前筛选的估计值（如果可用），否则尝试计算估计值。
+//网络延时时间计算函数。
 int VCMJitterEstimator::GetJitterEstimate(
     double rttMultiplier,
     absl::optional<double> rttMultAddCapMs) {
+  //OPERATING_SYSTEM_JITTER=10
   double jitterMS = CalculateEstimate() + OPERATING_SYSTEM_JITTER;
   uint64_t now = clock_->TimeInMicroseconds();
 
@@ -435,6 +456,7 @@ int VCMJitterEstimator::GetJitterEstimate(
   return rtc::checked_cast<int>(std::max(0.0, jitterMS) + 0.5);
 }
 
+//计算fps，
 double VCMJitterEstimator::GetFrameRate() const {
   if (fps_counter_.ComputeMean() <= 0.0)
     return 0;
@@ -442,6 +464,7 @@ double VCMJitterEstimator::GetFrameRate() const {
   double fps = 1000000.0 / fps_counter_.ComputeMean();
   // Sanity check.
   assert(fps >= 0.0);
+  //最大值200？
   if (fps > kMaxFramerateEstimate) {
     fps = kMaxFramerateEstimate;
   }

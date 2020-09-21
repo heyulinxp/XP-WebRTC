@@ -136,6 +136,7 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
   _rwLock->ReleaseLockExclusive();
 }
 
+//发送端发送时间计算函数
 int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
   ReadLockScoped rl(*_rwLock);
   int64_t localTimeMs = 0;

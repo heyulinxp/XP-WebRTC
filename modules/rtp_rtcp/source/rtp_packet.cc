@@ -442,6 +442,7 @@ void RtpPacket::Clear() {
   WriteAt(0, kRtpVersion << 6);
 }
 
+//解析buffer，返回值true表示无异常，false表示有异常
 bool RtpPacket::ParseBuffer(const uint8_t* buffer, size_t size) {
   if (size < kFixedHeaderSize) {
     return false;

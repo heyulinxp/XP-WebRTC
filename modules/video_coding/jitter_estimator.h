@@ -61,6 +61,7 @@ class VCMJitterEstimator {
   // A constant describing the delay from the jitter buffer to the delay on the
   // receiving side which is not accounted for by the jitter buffer nor the
   // decoding delay estimate.
+  //一个常数，描述从抖动缓冲器到接收端的延迟，该延迟不被抖动缓冲器或解码延迟估计所考虑。
   static const uint32_t OPERATING_SYSTEM_JITTER = 10;
 
  protected:

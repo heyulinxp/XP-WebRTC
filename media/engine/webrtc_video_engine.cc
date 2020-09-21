@@ -1622,12 +1622,14 @@ void WebRtcVideoChannel::FillSendAndReceiveCodecStats(
   }
 }
 
+//收到数据packet
 void WebRtcVideoChannel::OnPacketReceived(rtc::CopyOnWriteBuffer packet,
                                           int64_t packet_time_us) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   const webrtc::PacketReceiver::DeliveryStatus delivery_result =
       call_->Receiver()->DeliverPacket(webrtc::MediaType::VIDEO, packet,
                                        packet_time_us);
+  //ok或者packet_error都返回了
   switch (delivery_result) {
     case webrtc::PacketReceiver::DELIVERY_OK:
       return;

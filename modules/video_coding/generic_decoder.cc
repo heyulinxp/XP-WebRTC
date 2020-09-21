@@ -161,6 +161,7 @@ void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
 
   decodedImage.set_timestamp_us(frameInfo->renderTimeMs *
                                 rtc::kNumMicrosecsPerMillisec);
+  //通知，进行渲染
   _receiveCallback->FrameToRender(decodedImage, qp, *decode_time_ms,
                                   frameInfo->content_type);
 }

@@ -1019,7 +1019,7 @@ void RtpVideoStreamReceiver::ReceivePacket(const RtpPacketReceived& packet) {
     return;
   }
   if (packet.PayloadType() == config_.rtp.red_payload_type) {
-  	//正常的走这里
+  	//正常的走这里？
     ParseAndHandleEncapsulatingHeader(packet);
     return;
   }

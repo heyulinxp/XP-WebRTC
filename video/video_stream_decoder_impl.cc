@@ -79,7 +79,9 @@ void VideoStreamDecoderImpl::SetMaxPlayoutDelay(TimeDelta max_delay) {
   timing_.set_max_playout_delay(max_delay.ms());
 }
 
+//获取解码器
 VideoDecoder* VideoStreamDecoderImpl::GetDecoder(int payload_type) {
+  //类型不变，继续使用当前解码器
   if (current_payload_type_ == payload_type) {
     RTC_DCHECK(decoder_);
     return decoder_.get();
@@ -88,13 +90,14 @@ VideoDecoder* VideoStreamDecoderImpl::GetDecoder(int payload_type) {
   current_payload_type_.reset();
   decoder_.reset();
 
+  //检查有无注册荷载数据类型
   auto decoder_settings_it = decoder_settings_.find(payload_type);
   if (decoder_settings_it == decoder_settings_.end()) {
     RTC_LOG(LS_WARNING) << "Payload type " << payload_type
                         << " not registered.";
     return nullptr;
   }
-
+  //创建
   const SdpVideoFormat& video_format = decoder_settings_it->second.first;
   std::unique_ptr<VideoDecoder> decoder =
       decoder_factory_->CreateVideoDecoder(video_format);
@@ -103,7 +106,7 @@ VideoDecoder* VideoStreamDecoderImpl::GetDecoder(int payload_type) {
                         << payload_type << ".";
     return nullptr;
   }
-
+  //初始化
   int num_cores = decoder_settings_it->second.second;
   int32_t init_result = decoder->InitDecode(nullptr, num_cores);
   if (init_result != WEBRTC_VIDEO_CODEC_OK) {
@@ -111,7 +114,7 @@ VideoDecoder* VideoStreamDecoderImpl::GetDecoder(int payload_type) {
                         << payload_type << ".";
     return nullptr;
   }
-
+  //注册
   int32_t register_result =
       decoder->RegisterDecodeCompleteCallback(&decode_callbacks_);
   if (register_result != WEBRTC_VIDEO_CODEC_OK) {
@@ -124,6 +127,7 @@ VideoDecoder* VideoStreamDecoderImpl::GetDecoder(int payload_type) {
   return decoder_.get();
 }
 
+//保存帧信息
 void VideoStreamDecoderImpl::SaveFrameInfo(
     const video_coding::EncodedFrame& frame) {
   FrameInfo* frame_info = &frame_info_[next_frame_info_index_];
@@ -148,6 +152,7 @@ void VideoStreamDecoderImpl::StartNextDecode() {
       });
 }
 
+//有下一帧了
 void VideoStreamDecoderImpl::OnNextFrameCallback(
     std::unique_ptr<video_coding::EncodedFrame> frame,
     video_coding::FrameBuffer::ReturnReason result) {
