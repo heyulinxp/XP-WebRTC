@@ -498,6 +498,7 @@ RtpVideoStreamReceiver::ParseGenericDependenciesExtension(
   return kHasGenericDescriptor;
 }
 
+//收到了载荷数据
 void RtpVideoStreamReceiver::OnReceivedPayloadData(
     rtc::CopyOnWriteBuffer codec_payload,
     const RtpPacketReceived& rtp_packet,
@@ -508,6 +509,7 @@ void RtpVideoStreamReceiver::OnReceivedPayloadData(
       clock_->TimeInMilliseconds());
 
   // Try to extrapolate absolute capture time if it is missing.
+  //如果丢失了绝对捕获时间，请尝试推断它。
   packet->packet_info.set_absolute_capture_time(
       absolute_capture_time_receiver_.OnReceivePacket(
           AbsoluteCaptureTimeReceiver::GetSource(packet->packet_info.ssrc(),
@@ -548,6 +550,7 @@ void RtpVideoStreamReceiver::OnReceivedPayloadData(
   // Color space should only be transmitted in the last packet of a frame,
   // therefore, neglect it otherwise so that last_color_space_ is not reset by
   // mistake.
+  //颜色空间应该只在帧的最后一个包中传输，否则忽略它，这样就不会错误地重置最后一个颜色空间。
   if (video_header.is_last_packet_in_frame) {
     video_header.color_space = rtp_packet.GetExtension<ColorSpaceExtension>();
     if (video_header.color_space ||
@@ -555,8 +558,12 @@ void RtpVideoStreamReceiver::OnReceivedPayloadData(
       // Store color space since it's only transmitted when changed or for key
       // frames. Color space will be cleared if a key frame is transmitted
       // without color space information.
+      //存储颜色空间，因为它只在更改或关键帧时传输。
+      //如果在没有颜色空间信息的情况下传输关键帧，则颜色空间将被清除。
+      //这里存
       last_color_space_ = video_header.color_space;
     } else if (last_color_space_) {
+      //这里改后续的hedaer里的color_space
       video_header.color_space = last_color_space_;
     }
   }
@@ -607,6 +614,8 @@ void RtpVideoStreamReceiver::OnReceivedPayloadData(
     // Only when we start to receive packets will we know what payload type
     // that will be used. When we know the payload type insert the correct
     // sps/pps into the tracker.
+    //只有当我们开始接收数据包时，我们才会知道将使用的有效负载类型。
+    //当我们知道有效载荷类型时，将正确的sps/pps插入跟踪器。
     if (packet->payload_type != last_payload_type_) {
       last_payload_type_ = packet->payload_type;
       InsertSpsPpsIntoTracker(packet->payload_type);
@@ -638,9 +647,12 @@ void RtpVideoStreamReceiver::OnReceivedPayloadData(
   OnInsertedPacket(packet_buffer_.InsertPacket(std::move(packet)));
 }
 
+//由FlexFEC或ULPFEC恢复的数据包的回调接口。
+//在FlexFEC的情况下，实现应该能够基于SSRC对恢复的RTP包进行解复用。
 void RtpVideoStreamReceiver::OnRecoveredPacket(const uint8_t* rtp_packet,
                                                size_t rtp_packet_length) {
   RtpPacketReceived packet;
+  //赋值packet
   if (!packet.Parse(rtp_packet, rtp_packet_length))
     return;
   if (packet.PayloadType() == config_.rtp.red_payload_type) {
@@ -655,12 +667,16 @@ void RtpVideoStreamReceiver::OnRecoveredPacket(const uint8_t* rtp_packet,
   // this callback. We need a way to distinguish, for setting
   // packet.recovered() correctly. Ideally, move RED decapsulation out
   // of the Ulpfec implementation.
+  //TODO（nisse）：UlpfecReceiverImpl:：ProcessReceivedFec将原始（未封装）媒体包和
+  //恢复的数据包传递到此回调。我们需要一种方法来区分数据包。已恢复（）正确。理想情况下，
+  //将RED decapsulation从Ulpfec实现中移出。
 
   ReceivePacket(packet);
 }
 
 // This method handles both regular RTP packets and packets recovered
 // via FlexFEC.
+//该方法处理常规的RTP包和通过FlexFEC恢复的包。
 void RtpVideoStreamReceiver::OnRtpPacket(const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
 
@@ -677,6 +693,7 @@ void RtpVideoStreamReceiver::OnRtpPacket(const RtpPacketReceived& packet) {
       last_received_rtp_system_time_ms_ = now_ms;
     }
     // Periodically log the RTP header of incoming packets.
+    //每10s打一次日志
     if (now_ms - last_packet_log_ms_ > kPacketLogIntervalMs) {
       rtc::StringBuilder ss;
       ss << "Packet received on SSRC: " << packet.Ssrc()
@@ -702,6 +719,8 @@ void RtpVideoStreamReceiver::OnRtpPacket(const RtpPacketReceived& packet) {
   // Update receive statistics after ReceivePacket.
   // Receive statistics will be reset if the payload type changes (make sure
   // that the first packet is included in the stats).
+  //在接收数据包后更新接收统计信息。
+  //如果有效负载类型发生变化，接收统计信息将被重置（确保第一个数据包包含在统计信息中）。
   if (!packet.recovered()) {
     rtp_receive_statistics_->OnRtpPacket(packet);
   }
@@ -711,10 +730,13 @@ void RtpVideoStreamReceiver::OnRtpPacket(const RtpPacketReceived& packet) {
   }
 }
 
+//请求关键帧
 void RtpVideoStreamReceiver::RequestKeyFrame() {
   // TODO(bugs.webrtc.org/10336): Allow the sender to ignore key frame requests
   // issued by anything other than the LossNotificationController if it (the
   // sender) is relying on LNTF alone.
+  //TODO(bugs.webrtc.org/10336)：如果发送方（发送方）仅依赖LNTF，
+  //则允许发送方忽略由LossNotificationController以外的任何东西发出的密钥帧请求。
   if (keyframe_request_sender_) {
     keyframe_request_sender_->RequestKeyFrame();
   } else {
@@ -749,6 +771,7 @@ bool RtpVideoStreamReceiver::IsDecryptable() const {
   return frames_decryptable_.load();
 }
 
+//插入packet后
 void RtpVideoStreamReceiver::OnInsertedPacket(
     video_coding::PacketBuffer::InsertResult result) {
   video_coding::PacketBuffer::Packet* first_packet = nullptr;
@@ -764,6 +787,7 @@ void RtpVideoStreamReceiver::OnInsertedPacket(
     // packet. Document that assumption with the DCHECKs.
     RTC_DCHECK_EQ(frame_boundary, packet->is_first_packet_in_frame());
     if (packet->is_first_packet_in_frame()) {
+      //帧内第一packet
       first_packet = packet.get();
       max_nack_count = packet->times_nacked;
       min_recv_time = packet->packet_info.receive_time_ms();
@@ -814,11 +838,13 @@ void RtpVideoStreamReceiver::OnInsertedPacket(
     }
   }
   RTC_DCHECK(frame_boundary);
+  //被标记了buffer_cleared，清空buffer了，所以要请求关键帧
   if (result.buffer_cleared) {
     RequestKeyFrame();
   }
 }
 
+//判断首帧是否是IDR，不是丢弃帧；是，调用ManageFrame。?
 void RtpVideoStreamReceiver::OnAssembledFrame(
     std::unique_ptr<video_coding::RtpFrameObject> frame) {
   RTC_DCHECK_RUN_ON(&network_tc_);
@@ -837,11 +863,14 @@ void RtpVideoStreamReceiver::OnAssembledFrame(
 
   // If frames arrive before a key frame, they would not be decodable.
   // In that case, request a key frame ASAP.
+  //如果帧在关键帧之前到达，则它们将不可解码。在这种情况下，请尽快请求关键帧。
   if (!has_received_frame_) {
     if (frame->FrameType() != VideoFrameType::kVideoFrameKey) {
       // |loss_notification_controller_|, if present, would have already
       // requested a key frame when the first packet for the non-key frame
       // had arrived, so no need to replicate the request.
+      //|loss_notification_controller_|,如果存在,
+      //控制器在非关键帧的第一个数据包到达时已经请求了一个密钥帧，因此不需要复制该请求。
       if (!loss_notification_controller_) {
         RequestKeyFrame();
       }
@@ -889,12 +918,14 @@ void RtpVideoStreamReceiver::OnAssembledFrame(
   }
 }
 
+//接收到完整的frame了
 void RtpVideoStreamReceiver::OnCompleteFrame(
     std::unique_ptr<video_coding::EncodedFrame> frame) {
   {
     MutexLock lock(&last_seq_num_mutex_);
     video_coding::RtpFrameObject* rtp_frame =
         static_cast<video_coding::RtpFrameObject*>(frame.get());
+    //该picId的最后一个seqNum
     last_seq_num_for_pic_id_[rtp_frame->id.picture_id] =
         rtp_frame->last_seq_num();
   }
@@ -976,19 +1007,23 @@ void RtpVideoStreamReceiver::ManageFrame(
   reference_finder_->ManageFrame(std::move(frame));
 }
 
+//收到一个packet
 void RtpVideoStreamReceiver::ReceivePacket(const RtpPacketReceived& packet) {
   if (packet.payload_size() == 0) {
     // Padding or keep-alive packet.
     // TODO(nisse): Could drop empty packets earlier, but need to figure out how
     // they should be counted in stats.
+    //填充或保持活动包。
+    //TODO（nisse）：可以更早地丢弃空包，但需要弄清楚如何在统计中对它们进行计数。
     NotifyReceiverOfEmptyPacket(packet.SequenceNumber());
     return;
   }
   if (packet.PayloadType() == config_.rtp.red_payload_type) {
+  	//正常的走这里
     ParseAndHandleEncapsulatingHeader(packet);
     return;
   }
-
+  //payload_type如果不存在，则返回
   const auto type_it = payload_type_map_.find(packet.PayloadType());
   if (type_it == payload_type_map_.end()) {
     return;
@@ -1004,6 +1039,7 @@ void RtpVideoStreamReceiver::ReceivePacket(const RtpPacketReceived& packet) {
                         parsed_payload->video_header);
 }
 
+//如果通过RTX或FEC恢复数据包，则标记。
 void RtpVideoStreamReceiver::ParseAndHandleEncapsulatingHeader(
     const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
@@ -1018,6 +1054,7 @@ void RtpVideoStreamReceiver::ParseAndHandleEncapsulatingHeader(
             packet, config_.rtp.ulpfec_payload_type)) {
       return;
     }
+    //通过里面的回调，回调回这个类里的OnRecoveredPacket()方法
     ulpfec_receiver_->ProcessReceivedFec();
   }
 }
@@ -1025,6 +1062,7 @@ void RtpVideoStreamReceiver::ParseAndHandleEncapsulatingHeader(
 // In the case of a video stream without picture ids and no rtx the
 // RtpFrameReferenceFinder will need to know about padding to
 // correctly calculate frame references.
+//在没有图片id和rtx的视频流的情况下，RtpFrameReferenceFinder需要知道关于填充来正确计算帧引用。
 void RtpVideoStreamReceiver::NotifyReceiverOfEmptyPacket(uint16_t seq_num) {
   {
     MutexLock lock(&reference_finder_lock_);

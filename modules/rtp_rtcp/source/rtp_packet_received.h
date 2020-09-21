@@ -47,6 +47,7 @@ class RtpPacketReceived : public RtpPacket {
   void set_capture_ntp_time(NtpTime time) { capture_time_ = time; }
 
   // Flag if packet was recovered via RTX or FEC.
+  //如果通过RTX或FEC恢复数据包，则标记。
   bool recovered() const { return recovered_; }
   void set_recovered(bool value) { recovered_ = value; }
 

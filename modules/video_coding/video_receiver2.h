@@ -25,6 +25,9 @@ namespace webrtc {
 // ultimately delete it. It's difficult to do this incrementally with the
 // original VideoReceiver class, since it is used by the legacy
 // VideoCodingModule api.
+//这个类是vcm:：VideoReceiver的一个副本，它被裁剪成VideoReceive流所使用的内容，
+//目的是逐步地进一步精简它并最终删除它。很难用原始的VideoReceiver类增量执行此操作，
+//因为它由遗留的VideoCodingModule api使用。
 class VideoReceiver2 {
  public:
   VideoReceiver2(Clock* clock, VCMTiming* timing);
@@ -43,6 +46,8 @@ class VideoReceiver2 {
   // Notification methods that are used to check our internal state and validate
   // threading assumptions. These are called by VideoReceiveStream.
   // See |IsDecoderThreadRunning()| for more details.
+  //用于检查内部状态和验证线程假设的通知方法。它们被VideoReceiveStream调用。
+  //有关详细信息，请参见| IsDecoderThreadRunning（）|。
   void DecoderThreadStarting();
   void DecoderThreadStopped();
 

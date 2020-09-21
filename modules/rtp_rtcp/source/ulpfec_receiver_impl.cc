@@ -111,6 +111,7 @@ bool UlpfecReceiverImpl::AddReceivedRedPacket(
   if (rtp_packet.payload()[0] & 0x80) {
     // f bit set in RED header, i.e. there are more than one RED header blocks.
     // WebRTC never generates multiple blocks in a RED packet for FEC.
+    //WebRTC从不在FEC的红包中生成多个块。
     RTC_LOG(LS_WARNING) << "More than 1 block in RED packet is not supported.";
     return false;
   }
@@ -159,12 +160,18 @@ int32_t UlpfecReceiverImpl::ProcessReceivedFec() {
   // wont iterate over the same packet again. This also solves the problem of
   // not modifying the vector we are currently iterating over (packets are added
   // in AddReceivedRedPacket).
+  //如果我们迭代|received_packets_|，它包含一个使我们递归到这个函数的包
+  //（例如，一个红包封装了一个红包），
+  //那么我们将永远递归。为了避免这种情况，我们用一个空向量交换接收到的数据包，
+  //这样下一个递归调用就不会再次迭代同一个数据包。
+  //这也解决了不修改当前正在迭代的向量的问题（数据包被添加到addReceivedRepacket中）。
   std::vector<std::unique_ptr<ForwardErrorCorrection::ReceivedPacket>>
       received_packets;
   received_packets.swap(received_packets_);
 
   for (const auto& received_packet : received_packets) {
     // Send received media packet to VCM.
+    //将接收到的媒体包发送到VCM。
     if (!received_packet->is_fec) {
       ForwardErrorCorrection::Packet* packet = received_packet->pkt;
       mutex_.Unlock();
@@ -192,20 +199,25 @@ int32_t UlpfecReceiverImpl::ProcessReceivedFec() {
       // different set of the RTP header extensions and thus different byte
       // representation than the original packet, That will corrupt
       // FEC calculation.
+      //不要将恢复的数据包传递给FEC。恢复后的数据包可能有不同的RTP头扩展集，
+      //因而和原始数据包不同的字节表示，这将破坏FEC计算。
       fec_->DecodeFec(*received_packet, &recovered_packets_);
     }
   }
 
   // Send any recovered media packets to VCM.
+  //将任何恢复的媒体数据包发送到VCM。
   for (const auto& recovered_packet : recovered_packets_) {
     if (recovered_packet->returned) {
       // Already sent to the VCM and the jitter buffer.
+      //抖动已经发送到VCM。
       continue;
     }
     ForwardErrorCorrection::Packet* packet = recovered_packet->pkt;
     ++packet_counter_.num_recovered_packets;
     // Set this flag first; in case the recovered packet carries a RED
     // header, OnRecoveredPacket will recurse back here.
+    //首先设置此标志；如果恢复的数据包带有红色标头，OnRecoveredPacket将在此处递归。
     recovered_packet->returned = true;
     mutex_.Unlock();
     recovered_packet_callback_->OnRecoveredPacket(packet->data.data(),

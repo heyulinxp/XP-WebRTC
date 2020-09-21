@@ -466,7 +466,7 @@ RtpVideoStreamReceiver2::ParseGenericDependenciesExtension(
   return kHasGenericDescriptor;
 }
 
-//收到载荷数据
+//收到了载荷数据
 void RtpVideoStreamReceiver2::OnReceivedPayloadData(
     rtc::CopyOnWriteBuffer codec_payload,
     const RtpPacketReceived& rtp_packet,
@@ -477,6 +477,7 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
       clock_->TimeInMilliseconds());
 
   // Try to extrapolate absolute capture time if it is missing.
+  //如果丢失了绝对捕获时间，请尝试推断它。
   packet->packet_info.set_absolute_capture_time(
       absolute_capture_time_receiver_.OnReceivePacket(
           AbsoluteCaptureTimeReceiver::GetSource(packet->packet_info.ssrc(),
@@ -582,7 +583,7 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
     // that will be used. When we know the payload type insert the correct
     // sps/pps into the tracker.
     //只有当我们开始接收数据包时，我们才会知道将使用的有效负载类型。
-    //当我们知道有效载荷类型时，将正确的sps/PP插入跟踪器。
+    //当我们知道有效载荷类型时，将正确的sps/pps插入跟踪器。
     if (packet->payload_type != last_payload_type_) {
       last_payload_type_ = packet->payload_type;
       InsertSpsPpsIntoTracker(packet->payload_type);
@@ -614,6 +615,8 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadData(
   OnInsertedPacket(packet_buffer_.InsertPacket(std::move(packet)));
 }
 
+//由FlexFEC或ULPFEC恢复的数据包的回调接口。
+//在FlexFEC的情况下，实现应该能够基于SSRC对恢复的RTP包进行解复用。
 void RtpVideoStreamReceiver2::OnRecoveredPacket(const uint8_t* rtp_packet,
                                                 size_t rtp_packet_length) {
   RtpPacketReceived packet;
@@ -632,12 +635,16 @@ void RtpVideoStreamReceiver2::OnRecoveredPacket(const uint8_t* rtp_packet,
   // this callback. We need a way to distinguish, for setting
   // packet.recovered() correctly. Ideally, move RED decapsulation out
   // of the Ulpfec implementation.
+  //TODO（nisse）：UlpfecReceiverImpl:：ProcessReceivedFec将原始（未封装）媒体包和
+  //恢复的数据包传递到此回调。我们需要一种方法来区分数据包。已恢复（）正确。理想情况下，
+  //将RED decapsulation从Ulpfec实现中移出。
 
   ReceivePacket(packet);
 }
 
 // This method handles both regular RTP packets and packets recovered
 // via FlexFEC.
+//该方法处理常规的RTP包和通过FlexFEC恢复的包。
 void RtpVideoStreamReceiver2::OnRtpPacket(const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
 
@@ -653,6 +660,7 @@ void RtpVideoStreamReceiver2::OnRtpPacket(const RtpPacketReceived& packet) {
     last_received_rtp_system_time_ms_ = now_ms;
 
     // Periodically log the RTP header of incoming packets.
+    //每10s打一次日志
     if (now_ms - last_packet_log_ms_ > kPacketLogIntervalMs) {
       rtc::StringBuilder ss;
       ss << "Packet received on SSRC: " << packet.Ssrc()
@@ -678,6 +686,8 @@ void RtpVideoStreamReceiver2::OnRtpPacket(const RtpPacketReceived& packet) {
   // Update receive statistics after ReceivePacket.
   // Receive statistics will be reset if the payload type changes (make sure
   // that the first packet is included in the stats).
+  //在接收数据包后更新接收统计信息。
+  //如果有效负载类型发生变化，接收统计信息将被重置（确保第一个数据包包含在统计信息中）。
   if (!packet.recovered()) {
     rtp_receive_statistics_->OnRtpPacket(packet);
   }
@@ -693,6 +703,8 @@ void RtpVideoStreamReceiver2::RequestKeyFrame() {
   // TODO(bugs.webrtc.org/10336): Allow the sender to ignore key frame requests
   // issued by anything other than the LossNotificationController if it (the
   // sender) is relying on LNTF alone.
+  //TODO(bugs.webrtc.org/10336)：如果发送方（发送方）仅依赖LNTF，
+  //则允许发送方忽略由LossNotificationController以外的任何东西发出的密钥帧请求。
   if (keyframe_request_sender_) {
     keyframe_request_sender_->RequestKeyFrame();
   } else {
@@ -997,6 +1009,7 @@ void RtpVideoStreamReceiver2::ReceivePacket(const RtpPacketReceived& packet) {
                         parsed_payload->video_header);
 }
 
+//如果通过RTX或FEC恢复数据包，则标记。
 void RtpVideoStreamReceiver2::ParseAndHandleEncapsulatingHeader(
     const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
@@ -1011,6 +1024,7 @@ void RtpVideoStreamReceiver2::ParseAndHandleEncapsulatingHeader(
             packet, config_.rtp.ulpfec_payload_type)) {
       return;
     }
+    //通过里面的回调，回调回这个类里的OnRecoveredPacket()方法
     ulpfec_receiver_->ProcessReceivedFec();
   }
 }
@@ -1018,6 +1032,7 @@ void RtpVideoStreamReceiver2::ParseAndHandleEncapsulatingHeader(
 // In the case of a video stream without picture ids and no rtx the
 // RtpFrameReferenceFinder will need to know about padding to
 // correctly calculate frame references.
+//在没有图片id和rtx的视频流的情况下，RtpFrameReferenceFinder需要知道关于填充来正确计算帧引用。
 void RtpVideoStreamReceiver2::NotifyReceiverOfEmptyPacket(uint16_t seq_num) {
   RTC_DCHECK_RUN_ON(&worker_task_checker_);
 

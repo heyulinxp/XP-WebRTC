@@ -268,6 +268,7 @@ void VCMFrameBuffer::PrepareForDecode(bool continuous) {
   set_size(size() - bytes_removed);
   // Transfer frame information to EncodedFrame and create any codec
   // specific information.
+  //将帧信息传输到EncodedFrame并创建任何特定于编解码器的信息。
   _frameType = _sessionInfo.FrameType();
   _completeFrame = _sessionInfo.complete();
   _missingFrame = !continuous;

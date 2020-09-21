@@ -65,6 +65,7 @@ void VideoReceiver::Process() {
   RTC_DCHECK_RUN_ON(&module_thread_checker_);
 
   // Key frame requests
+  //关键帧请求
   if (_keyRequestTimer.TimeUntilProcess() == 0) {
     _keyRequestTimer.Processed();
     bool request_key_frame = _frameTypeCallback != nullptr;
@@ -87,6 +88,7 @@ void VideoReceiver::Process() {
     uint16_t length = max_nack_list_size_;
     if (callback_registered && length > 0) {
       // Collect sequence numbers from the default receiver.
+      //从默认接收器收集序列号。
       bool request_key_frame = false;
       std::vector<uint16_t> nackList = _receiver.NackList(&request_key_frame);
       int32_t ret = VCM_OK;
@@ -103,6 +105,7 @@ void VideoReceiver::Process() {
   }
 }
 
+//设置依附的processThread
 void VideoReceiver::ProcessThreadAttached(ProcessThread* process_thread) {
   RTC_DCHECK_RUN_ON(&construction_thread_checker_);
   if (process_thread) {
@@ -114,6 +117,7 @@ void VideoReceiver::ProcessThreadAttached(ProcessThread* process_thread) {
   }
 }
 
+//重传，和请求关键帧，两个timer到下次调用的时间的较小值
 int64_t VideoReceiver::TimeUntilNextProcess() {
   RTC_DCHECK_RUN_ON(&module_thread_checker_);
   int64_t timeUntilNextProcess = _retransmissionTimer.TimeUntilProcess();
@@ -126,16 +130,19 @@ int64_t VideoReceiver::TimeUntilNextProcess() {
 
 // Register a receive callback. Will be called whenever there is a new frame
 // ready for rendering.
+//注册接收回调。将在有新帧准备渲染时调用。
 int32_t VideoReceiver::RegisterReceiveCallback(
     VCMReceiveCallback* receiveCallback) {
   RTC_DCHECK_RUN_ON(&construction_thread_checker_);
   // This value is set before the decoder thread starts and unset after
   // the decoder thread has been stopped.
+  //此值在解码器线程启动之前设置，并在解码器线程停止后取消设置。
   _decodedFrameCallback.SetUserReceiveCallback(receiveCallback);
   return VCM_OK;
 }
 
 // Register an externally defined decoder object.
+//注册外部定义的解码器对象。
 void VideoReceiver::RegisterExternalDecoder(VideoDecoder* externalDecoder,
                                             uint8_t payloadType) {
   RTC_DCHECK_RUN_ON(&construction_thread_checker_);
@@ -155,6 +162,9 @@ int32_t VideoReceiver::RegisterFrameTypeCallback(
   // callbacks on the module thread while the decoder thread isn't running
   // (and this function must not be called when the decoder is running),
   // we don't need a lock here.
+  //这个回调是在模块线程上使用的，但是由于在解码器线程没有运行时
+  //我们不会得到对模块线程的回调（而且在解码器运行时不能调用这个函数），
+  //所以这里不需要锁。
   _frameTypeCallback = frameTypeCallback;
   return VCM_OK;
 }
@@ -173,6 +183,9 @@ int32_t VideoReceiver::RegisterPacketRequestCallback(
 
 // Decode next frame, blocking.
 // Should be called as often as possible to get the most out of the decoder.
+//解码下一帧，阻塞。
+//应尽可能频繁地调用，以充分利用解码器。
+//递归调用自己的。
 int32_t VideoReceiver::Decode(uint16_t maxWaitTimeMs) {
   RTC_DCHECK_RUN_ON(&decoder_thread_checker_);
   VCMEncodedFrame* frame = _receiver.FrameForDecoding(
@@ -187,12 +200,15 @@ int32_t VideoReceiver::Decode(uint16_t maxWaitTimeMs) {
     if (drop_frames_until_keyframe_) {
       // Still getting delta frames, schedule another keyframe request as if
       // decode failed.
+      //仍在获取增量帧，请安排另一个关键帧请求，就像解码失败一样。
       if (frame->FrameType() != VideoFrameType::kVideoFrameKey) {
         drop_frame = true;
         _scheduleKeyRequest = true;
         // TODO(tommi): Consider if we could instead post a task to the module
         // thread and call RequestKeyFrame directly. Here we call WakeUp so that
         // TimeUntilNextProcess() gets called straight away.
+        //TODO（tommi）：考虑是否可以将任务发布到模块线程并直接调用RequestKeyFrame。
+        //这里我们调用WakeUp，这样就可以直接调用timeuntinextprocess（）。
         process_thread_->WakeUp(this);
       } else {
         drop_frames_until_keyframe_ = false;
@@ -206,6 +222,7 @@ int32_t VideoReceiver::Decode(uint16_t maxWaitTimeMs) {
   }
 
   // If this frame was too late, we should adjust the delay accordingly
+  //如果这个帧太晚了，我们应该相应地调整延迟。
   _timing->UpdateCurrentDelay(frame->RenderTimeMs(),
                               clock_->TimeInMilliseconds());
 
@@ -267,6 +284,7 @@ int32_t VideoReceiver::RegisterReceiveCodec(uint8_t payload_type,
 }
 
 // Incoming packet from network parsed and ready for decode, non blocking.
+//来自网络的传入数据包已解析并准备好解码，无阻塞。
 int32_t VideoReceiver::IncomingPacket(const uint8_t* incomingPayload,
                                       size_t payloadLength,
                                       const RTPHeader& rtp_header,

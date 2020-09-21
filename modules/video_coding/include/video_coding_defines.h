@@ -34,9 +34,12 @@ enum {
   // Timing frames settings. Timing frames are sent every
   // |kDefaultTimingFramesDelayMs|, or if the frame is at least
   // |kDefaultOutliserFrameSizePercent| in size of average frame.
+  //定时帧设置。定时帧每隔| kDefaultTimingFramesDelayMs |发送，
+  //或者如果帧的大小至少为平均帧大小的| kDefaultOutlinesFrameSizePercent |。
   kDefaultTimingFramesDelayMs = 200,
   kDefaultOutlierFrameSizePercent = 500,
   // Maximum number of frames for what we store encode start timing information.
+  //我们存储的编码开始计时信息的最大帧数。
   kMaxEncodeStartTimeListSize = 150,
 };
 
@@ -49,6 +52,7 @@ enum VCMVideoProtection {
 
 // Callback class used for passing decoded frames which are ready to be
 // rendered.
+//回调类，用于传递已解码的帧，这些帧已准备好呈现。
 class VCMReceiveCallback {
  public:
   virtual int32_t FrameToRender(VideoFrame& videoFrame,  // NOLINT
@@ -68,6 +72,7 @@ class VCMReceiveCallback {
 
 // Callback class used for informing the user of the incoming bit rate and frame
 // rate.
+//用于通知用户传入比特率和帧速率的回调类。
 class VCMReceiveStatisticsCallback {
  public:
   virtual void OnCompleteFrame(bool is_keyframe,
@@ -92,6 +97,7 @@ class VCMReceiveStatisticsCallback {
 // Callback class used for telling the user about what frame type needed to
 // continue decoding.
 // Typically a key frame when the stream has been corrupted in some way.
+//用于告诉用户继续解码所需的帧类型的回调类。当流以某种方式损坏时，通常是一个关键帧。
 class VCMFrameTypeCallback {
  public:
   virtual int32_t RequestKeyFrame() = 0;
@@ -105,6 +111,8 @@ class VCMFrameTypeCallback {
 // missing and need to be resent.
 // TODO(philipel): Deprecate VCMPacketRequestCallback
 //                 and use NackSender instead.
+//回调类，用于告诉用户当前缺少哪些数据包序列号，需要重新发送。
+//TODO（philipel）：不推荐使用VCMPacketRequestCallback，而使用NackSender。
 class VCMPacketRequestCallback {
  public:
   virtual int32_t ResendPackets(const uint16_t* sequenceNumbers,

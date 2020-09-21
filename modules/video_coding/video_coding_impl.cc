@@ -26,12 +26,14 @@ int64_t VCMProcessTimer::Period() const {
   return _periodMs;
 }
 
+//直到下一次process处理的时间
 int64_t VCMProcessTimer::TimeUntilProcess() const {
   const int64_t time_since_process = _clock->TimeInMilliseconds() - _latestMs;
   const int64_t time_until_process = _periodMs - time_since_process;
   return std::max<int64_t>(time_until_process, 0);
 }
 
+//已处理，更新一下时间戳
 void VCMProcessTimer::Processed() {
   _latestMs = _clock->TimeInMilliseconds();
 }
@@ -89,6 +91,7 @@ class VideoCodingModuleImpl : public VideoCodingModule {
     return receiver_.Decode(maxWaitTimeMs);
   }
 
+  //插入packet
   int32_t IncomingPacket(const uint8_t* incomingPayload,
                          size_t payloadLength,
                          const RTPHeader& rtp_header,

@@ -36,10 +36,12 @@ class LossNotificationController {
 
   // An RTP packet was received from the network.
   // |frame| is non-null iff the packet is the first packet in the frame.
+  //从网络接收到RTP数据包。如果packet是第一个包，则frame非空。
   void OnReceivedPacket(uint16_t rtp_seq_num, const FrameDetails* frame);
 
   // A frame was assembled from packets previously received.
   // (Should be called even if the frame was composed of a single packet.)
+  //一个帧是由先前接收到的数据包组装而成的。（即使帧由单个包组成，也应调用。）
   void OnAssembledFrame(uint16_t first_seq_num,
                         int64_t frame_id,
                         bool discardable,
@@ -90,10 +92,15 @@ class LossNotificationController {
   // a mouthful, last_decodable_non_discardable_.first_seq_num is used,
   // which hopefully is a bit easier for human beings to parse
   // than |first_seq_num_of_last_decodable_non_discardable_|.
+  //丢失通知包含最后一个【可解码和不可丢弃帧】的第一个包的序列号。
+  //因为这有点太多了，使用了last_decodable_non_discardable_.first_seq_num。
+  //希望这比| last_decoable_non_discardable|的| first_seq_num|更容易解析。
   struct FrameInfo {
     explicit FrameInfo(uint16_t first_seq_num) : first_seq_num(first_seq_num) {}
     uint16_t first_seq_num;
   };
+
+  
   absl::optional<FrameInfo> last_decodable_non_discardable_
       RTC_GUARDED_BY(sequence_checker_);
 

@@ -169,6 +169,8 @@ struct RtpState {
 // Callback interface for packets recovered by FlexFEC or ULPFEC. In
 // the FlexFEC case, the implementation should be able to demultiplex
 // the recovered RTP packets based on SSRC.
+//由FlexFEC或ULPFEC恢复的数据包的回调接口。
+//在FlexFEC的情况下，实现应该能够基于SSRC对恢复的RTP包进行解复用。
 class RecoveredPacketReceiver {
  public:
   virtual void OnRecoveredPacket(const uint8_t* packet, size_t length) = 0;

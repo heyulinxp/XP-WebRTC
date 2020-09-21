@@ -83,6 +83,21 @@ struct RtpDemuxerCriteria {
 // In summary, the routing algorithm will always try to first match MID and RSID
 // (including through SSRC binding), match SSRC directly as needed, and use
 // payload types only if all else fails.
+//此类表示单个RTP会话（即一个SSRC空间，见rfc7656）的RTP解组。它没有线程意识，将多线程问题的责任留给了这个类的用户。
+//解组算法遵循捆绑草案中给出的草图：
+//https://tools.ietf.org/html/draft-ietf-mmusic-sdp-bundle-negotiation-38\section-10.2款
+//也支持RTP流id。
+//
+//当接收到数据包时，RtpDemuxer将根据以下规则进行路由：
+//1.如果数据包包含MID报头扩展，并且没有使用该MID作为标准添加接收器，则不会路由该数据包。
+//2.如果数据包有MID报头扩展，但没有RSID或RRID扩展，并且MID绑定到接收器，则将其SSRC绑定到同一个接收器，然后将数据包转发到该接收器。请注意，重新绑定到同一个接收器不是错误。（因此，具有该SSRC的后续数据包将被转发到同一个接收器，无论它们是否具有中间报头扩展）
+//3.如果数据包有MID报头扩展和RSID或RRID扩展，并且MID、RSID（或RRID）对绑定到接收器，则将其SSRC绑定到同一接收器，然后将数据包转发到该接收器。随后，带有该SSRC的数据包将被转发到同一个接收器。
+//4.如果数据包具有RSID或RRID报头扩展，但没有中间扩展，并且RSID或RRID绑定到RSID接收器，则将其SSRC绑定到同一接收器，并将数据包转发到该接收器。随后，带有该SSRC的数据包将被转发到同一个接收器。
+//5.如果包的SSRC通过之前对AddSink的调用绑定到SSRC，则将包转发到该sink。注意，RtpDemuxer不会验证有效负载类型，即使它包含在sink的条件中。接收器应该在其处理程序中执行检查。
+//6.如果包的有效负载类型通过先前对AddSink的调用绑定到一个负载类型接收器，则将数据包转发到该接收器。
+//7.否则，数据包不会被路由。
+//
+//总之，路由算法将始终尝试首先匹配MID和RSID（包括通过SSRC绑定），根据需要直接匹配SSRC，并且只有在所有其他方法都失败时才使用有效负载类型。
 class RtpDemuxer {
  public:
   // Maximum number of unique SSRC bindings allowed. This limit is to prevent

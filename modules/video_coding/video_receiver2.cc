@@ -42,6 +42,7 @@ VideoReceiver2::~VideoReceiver2() {
 
 // Register a receive callback. Will be called whenever there is a new frame
 // ready for rendering.
+//注册接收回调。将在有新帧准备渲染时调用。
 int32_t VideoReceiver2::RegisterReceiveCallback(
     VCMReceiveCallback* receiveCallback) {
   RTC_DCHECK_RUN_ON(&construction_thread_checker_);
@@ -53,6 +54,7 @@ int32_t VideoReceiver2::RegisterReceiveCallback(
 }
 
 // Register an externally defined decoder object.
+//注册外部定义的解码器对象。
 void VideoReceiver2::RegisterExternalDecoder(VideoDecoder* externalDecoder,
                                              uint8_t payloadType) {
   RTC_DCHECK_RUN_ON(&construction_thread_checker_);
@@ -82,6 +84,7 @@ void VideoReceiver2::DecoderThreadStopped() {
 }
 
 // Must be called from inside the receive side critical section.
+//必须从接收端关键部分内部调用。
 int32_t VideoReceiver2::Decode(const VCMEncodedFrame* frame) {
   RTC_DCHECK_RUN_ON(&decoder_thread_checker_);
   TRACE_EVENT0("webrtc", "VideoReceiver2::Decode");
@@ -95,6 +98,7 @@ int32_t VideoReceiver2::Decode(const VCMEncodedFrame* frame) {
 }
 
 // Register possible receive codecs, can be called multiple times
+//注册可能的接收编解码器，可以多次调用
 int32_t VideoReceiver2::RegisterReceiveCodec(uint8_t payload_type,
                                              const VideoCodec* receiveCodec,
                                              int32_t numberOfCores) {

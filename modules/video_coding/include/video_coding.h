@@ -49,6 +49,16 @@ class VideoCodingModule : public Module {
   //
   // Return value      : VCM_OK, on success.
   //                     < 0,    on error.
+  //注册可能的接收编解码器，可以为不同的编解码器多次调用。
+  //该模块将根据传入帧的有效载荷类型在已注册的编解码器之间自动切换。
+  //实际的解码器将在需要时创建。
+  //输入：
+  //-有效载荷类型：RTP有效载荷类型
+  //-receiveCodec：要注册的编解码器的设置。
+  //-numberOfCores：解码器允许的CPU核数使用。
+  //返回值：
+  //VCM_OK，成功时。
+  //<0，出错时。
   virtual int32_t RegisterReceiveCodec(uint8_t payload_type,
                                        const VideoCodec* receiveCodec,
                                        int32_t numberOfCores) = 0;
@@ -58,6 +68,10 @@ class VideoCodingModule : public Module {
   // Input:
   //      - externalDecoder : Decoder object to be used for decoding frames.
   //      - payloadType     : The payload type which this decoder is bound to.
+  //注册外部解码器对象。
+  //输入：
+  //-externalDecoder：用于解码帧的解码器对象。
+  //-payloadType：此解码器绑定到的有效负载类型。
   virtual void RegisterExternalDecoder(VideoDecoder* externalDecoder,
                                        uint8_t payloadType) = 0;
 
@@ -73,6 +87,12 @@ class VideoCodingModule : public Module {
   //
   // Return value      : VCM_OK, on success.
   //                     < 0,    on error.
+  //注册接收回调。将在有新帧准备渲染时调用。
+  //输入：
+  //-receiveCallback：当帧准备好呈现时，模块要使用的回调对象。用空指针取消注册。
+  //返回值：
+  //VCM_OK，成功时。
+  //<0，出错时。
   virtual int32_t RegisterReceiveCallback(
       VCMReceiveCallback* receiveCallback) = 0;
 
@@ -89,6 +109,12 @@ class VideoCodingModule : public Module {
   //
   // Return value      : VCM_OK, on success.
   //                     < 0,    on error.
+  //注册帧类型请求回调。当模块需要从发送端请求特定帧类型时，将调用此回调。
+  //输入：
+  //-frameTypeCallback：模块在从发送端请求特定类型的帧时使用的回调对象。用空指针取消注册。
+  //返回值：
+  //VCM_OK，成功时。
+  //<0，出错时。
   virtual int32_t RegisterFrameTypeCallback(
       VCMFrameTypeCallback* frameTypeCallback) = 0;
 
@@ -101,6 +127,12 @@ class VideoCodingModule : public Module {
   //
   // Return value     : VCM_OK,     on success.
   //                    <0,         on error.
+  //注册一个回调，每当VCM的接收端遇到数据包序列中的漏洞并需要重新传输数据包时，就会调用该回调。
+  //输入：
+  //-回调：要在VCM中注册的回调。
+  //返回值：
+  //VCM_OK，成功时。
+  //<0，出错时。
   virtual int32_t RegisterPacketRequestCallback(
       VCMPacketRequestCallback* callback) = 0;
 
@@ -111,6 +143,11 @@ class VideoCodingModule : public Module {
   //
   // Return value      : VCM_OK, on success.
   //                     < 0,    on error.
+  //等待抖动缓冲区中的下一帧完成（等待时间不超过maxWaitTimeMs），然后将其传递给解码器进行解码。
+  //应尽可能频繁地调用，以最大限度地利用解码器。
+  //返回值：
+  //VCM_OK，成功时。
+  //<0，出错时。
   virtual int32_t Decode(uint16_t maxWaitTimeMs = 200) = 0;
 
   // Insert a parsed packet into the receiver side of the module. Will be placed
@@ -127,6 +164,15 @@ class VideoCodingModule : public Module {
   //
   // Return value      : VCM_OK, on success.
   //                     < 0,    on error.
+  //将解析后的数据包插入模块的接收方。将被放入抖动缓冲区等待帧完成。一旦包被放入抖动缓冲区，就返回。
+  //输入：
+  //-incomingPayload：包的有效负载。
+  //-payloadLength：有效载荷的长度。
+  //-rtp_header：解析的rtp头。
+  //-video_header：相关扩展和有效负载头。
+  //返回值：
+  //VCM_OK，成功时。
+  //<0，出错时。
   virtual int32_t IncomingPacket(const uint8_t* incomingPayload,
                                  size_t payloadLength,
                                  const RTPHeader& rtp_header,
@@ -138,6 +184,9 @@ class VideoCodingModule : public Module {
   // a key frame will be requested. A key frame will also be requested if the
   // time of incomplete or non-continuous frames in the jitter buffer is above
   // |max_incomplete_time_ms|.
+  //设置允许NACK的最大序列号数目和我们将考虑NACK的最旧序列号。
+  //如果序列号大于| max_packet_age_to_nack |丢失，将请求一个关键帧。
+  //如果抖动缓冲区中的不完整或非连续帧的时间超过| max_incomplete_time|，也将请求关键帧。
   virtual void SetNackSettings(size_t max_nack_list_size,
                                int max_packet_age_to_nack,
                                int max_incomplete_time_ms) = 0;

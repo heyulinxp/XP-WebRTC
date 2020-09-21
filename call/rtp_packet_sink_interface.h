@@ -15,6 +15,7 @@ namespace webrtc {
 class RtpPacketReceived;
 
 // This class represents a receiver of already parsed RTP packets.
+//此类表示已解析的RTP数据包的接收器。
 class RtpPacketSinkInterface {
  public:
   virtual ~RtpPacketSinkInterface() = default;

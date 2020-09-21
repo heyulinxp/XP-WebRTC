@@ -59,6 +59,7 @@ class RtpFrameReferenceFinder {
 
   // Notifies that padding has been received, which the reference finder
   // might need to calculate the references of a frame.
+  //通知已接收到填充，引用查找程序可能需要它来计算帧的引用。
   void PaddingReceived(uint16_t seq_num);
 
   // Clear all stashed frames that include packets older than |seq_num|.
@@ -177,10 +178,12 @@ class RtpFrameReferenceFinder {
 
   // Frames that have been fully received but didn't have all the information
   // needed to determine their references.
+  //帧已完全接收，但没有确定其引用所需的所有信息。
   std::deque<std::unique_ptr<RtpFrameObject>> stashed_frames_;
 
   // Holds the information about the last completed frame for a given temporal
   // layer given an unwrapped Tl0 picture index.
+  //在给定展开Tl0图片索引的给定时间层中，保存有关最后完成的帧的信息。
   std::map<int64_t, std::array<int64_t, kMaxTemporalLayers>> layer_info_;
 
   // Where the current scalability structure is in the

@@ -51,6 +51,7 @@ RtpStreamReceiverController::CreateReceiver(uint32_t ssrc,
   return std::make_unique<Receiver>(this, ssrc, sink);
 }
 
+//收到Rtp包
 bool RtpStreamReceiverController::OnRtpPacket(const RtpPacketReceived& packet) {
   rtc::CritScope cs(&lock_);
   return demuxer_.OnRtpPacket(packet);

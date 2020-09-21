@@ -51,6 +51,7 @@ class KeyFrameRequestSender {
 };
 
 // Interface used by LossNotificationController to communicate to RtpRtcp.
+//LossNotification Controller用于与RtpRtcp通信的接口。
 class LossNotificationSender {
  public:
   virtual ~LossNotificationSender() {}

@@ -296,6 +296,7 @@ class RtpVideoStreamReceiver : public LossNotificationSender,
   void ReceivePacket(const RtpPacketReceived& packet);
   // Parses and handles RED headers.
   // This function assumes that it's being called from only one thread.
+  //解析并处理RED标题。此函数假定只从一个线程调用它。
   void ParseAndHandleEncapsulatingHeader(const RtpPacketReceived& packet);
   void NotifyReceiverOfEmptyPacket(uint16_t seq_num);
   void UpdateHistograms();

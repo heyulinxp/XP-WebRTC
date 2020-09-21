@@ -49,6 +49,7 @@ class UlpfecReceiver {
 
   // Sends the received packets to the FEC and returns all packets
   // (both original media and recovered) through the callback.
+  //将接收到的数据包发送到FEC，并通过回调返回所有数据包（包括原始媒体和恢复的数据包）。
   virtual int32_t ProcessReceivedFec() = 0;
 
   // Returns a counter describing the added and recovered packets.

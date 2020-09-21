@@ -106,6 +106,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
     timing_->set_max_playout_delay(max_playout_delay_ms);
 
   // We have a frame - Set timing and render timestamp.
+  //我们有一个帧，设置时间和渲染时间戳。
   timing_->SetJitterDelay(jitter_buffer_.EstimatedJitterMs());
   const int64_t now_ms = clock_->TimeInMilliseconds();
   timing_->UpdateCurrentDelay(frame_timestamp);
@@ -144,6 +145,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
   //更乐意晚点解码？
   if (prefer_late_decoding) {
     // Decode frame as close as possible to the render timestamp.
+    //解码帧时尽可能靠近渲染时间戳
     const int32_t available_wait_time =
         max_wait_time_ms -
         static_cast<int32_t>(clock_->TimeInMilliseconds() - start_time_ms);
@@ -155,6 +157,8 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
       // We're not allowed to wait until the frame is supposed to be rendered,
       // waiting as long as we're allowed to avoid busy looping, and then return
       // NULL. Next call to this function might return the frame.
+      //我们不允许等待直到帧被渲染，只要我们被允许避免繁忙的循环，然后返回NULL。
+      //下一次调用此函数可能会返回帧。
       render_wait_event_->Wait(new_max_wait_time);
       return NULL;
     }
@@ -187,6 +191,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
   return frame;
 }
 
+//释放frame
 void VCMReceiver::ReleaseFrame(VCMEncodedFrame* frame) {
   jitter_buffer_.ReleaseFrame(frame);
 }

@@ -128,6 +128,7 @@ RtpFrameReferenceFinder::ManageFrameInternal(RtpFrameObject* frame) {
   }
 }
 
+//通知已接收到填充，引用查找程序可能需要它来计算帧的引用。
 void RtpFrameReferenceFinder::PaddingReceived(uint16_t seq_num) {
   auto clean_padding_to =
       stashed_padding_.lower_bound(seq_num - kMaxPaddingAge);
