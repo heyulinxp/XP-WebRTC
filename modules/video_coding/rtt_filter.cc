@@ -68,10 +68,13 @@ void VCMRttFilter::Update(int64_t rttMs) {
   }
 
   double filtFactor = 0;
+  //算比例
   if (_filtFactCount > 1) {
     filtFactor = static_cast<double>(_filtFactCount - 1) / _filtFactCount;
   }
+  //累加统计
   _filtFactCount++;
+  
   if (_filtFactCount > _filtFactMax) {
     // This prevents filtFactor from going above
     // (_filtFactMax - 1) / _filtFactMax,
@@ -93,6 +96,7 @@ void VCMRttFilter::Update(int64_t rttMs) {
 }
 
 //检测跳动，平均值_avgRtt与现在的值rttMs的比较，大于2.5倍中误差
+//返回true表示正常，false表示有突变
 bool VCMRttFilter::JumpDetection(int64_t rttMs) {
   double diffFromAvg = _avgRtt - rttMs;
   //_jumpStdDevs=2.5
@@ -117,6 +121,7 @@ bool VCMRttFilter::JumpDetection(int64_t rttMs) {
       _jumpBuf[abs(_jumpCount)] = rttMs;
       _jumpCount += diffSign;
     }
+	//_detectThreshold=kMaxDriftJumpCount=5
     if (abs(_jumpCount) >= _detectThreshold) {
       // Detected an RTT jump
       //检测到RTT跳转
@@ -132,17 +137,20 @@ bool VCMRttFilter::JumpDetection(int64_t rttMs) {
   return true;
 }
 
+//漂移探测
 bool VCMRttFilter::DriftDetection(int64_t rttMs) {
   //_driftStdDevs=3.5
   if (_maxRtt - _avgRtt > _driftStdDevs * sqrt(_varRtt)) {
     if (_driftCount < kMaxDriftJumpCount) {
       // Update the buffer used for the short time
       // statistics.
+      //更新用于短时间统计的缓冲区。
       _driftBuf[_driftCount] = rttMs;
       _driftCount++;
     }
     if (_driftCount >= _detectThreshold) {
       // Detected an RTT drift
+      //检测到RTT漂移
       ShortRttFilter(_driftBuf, _driftCount);
       _filtFactCount = _detectThreshold + 1;
       _driftCount = 0;

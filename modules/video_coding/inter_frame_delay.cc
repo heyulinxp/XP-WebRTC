@@ -28,7 +28,13 @@ void VCMInterFrameDelay::Reset(int64_t currentWallClock) {
 // Calculates the delay of a frame with the given timestamp.
 // This method is called when the frame is complete.
 //计算具有给定时间戳的帧的延迟。此方法在帧完成时调用。
-//返回值true表示没有重排序,false表示有重排序
+//返回值true表示没有重排序,false表示有重排序。
+//好像是仅计算frame的timestamp之间的时间差，inter_frame_delay，帧间延迟。
+//输入：
+//-时间戳：接收帧的RTP时间戳。
+//-*延迟：指向存储结果的内存的指针。
+//-currentWallClock：以毫秒为单位的当前时间。正常运行应为-1，仅用于测试。
+//返回值：如果确定，则返回true；如果重新排序时间戳，则返回false。
 bool VCMInterFrameDelay::CalculateDelay(uint32_t timestamp,
                                         int64_t* delay,
                                         int64_t currentWallClock) {
@@ -62,6 +68,7 @@ bool VCMInterFrameDelay::CalculateDelay(uint32_t timestamp,
   // Compute the compensated timestamp difference and convert it to ms and round
   // it to closest integer.
   //计算补偿后的时间戳差并将其转换为ms并四舍五入到最接近的整数。
+  //视频1秒钟对应90KHZ的采样率，时间戳是根据这个关系式换算成时间。
   _dTS = static_cast<int64_t>(
       (timestamp + wrapAroundsSincePrev * (static_cast<int64_t>(1) << 32) -
        _prevTimestamp) /

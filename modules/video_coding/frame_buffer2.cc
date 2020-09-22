@@ -73,6 +73,7 @@ FrameBuffer::~FrameBuffer() {
 }
 
 //最长等待max_wait_time_ms时间，取出下一帧用于解码
+//若当前帧OK，直接送给解码器。若当前帧不全，需要等wait_ms，超过wait_ms，直接跳下一帧。
 void FrameBuffer::NextFrame(
     int64_t max_wait_time_ms,
     bool keyframe_required,
@@ -246,6 +247,7 @@ EncodedFrame* FrameBuffer::GetNextFrame() {
   RTC_DCHECK(!frames_to_decode_.empty());
   bool superframe_delayed_by_retransmission = false;
   size_t superframe_size = 0;
+  //能够decode的帧，取第一个
   EncodedFrame* first_frame = frames_to_decode_[0]->second.frame.get();
   int64_t render_time_ms = first_frame->RenderTime();
   int64_t receive_time_ms = first_frame->ReceivedTime();
@@ -290,7 +292,7 @@ EncodedFrame* FrameBuffer::GetNextFrame() {
 
   if (!superframe_delayed_by_retransmission) {
     int64_t frame_delay;
-
+    //返回false，有乱序的，则不进入jitter_estimator了
     if (inter_frame_delay_.CalculateDelay(first_frame->Timestamp(),
                                           &frame_delay, receive_time_ms)) {
       jitter_estimator_.UpdateEstimate(frame_delay, superframe_size);

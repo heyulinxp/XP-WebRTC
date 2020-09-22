@@ -57,6 +57,8 @@ void TimestampExtrapolator::Reset(int64_t start_ms) {
   _detectorAccumulatorNeg = 0;
 }
 
+//更新时间
+//tMs是系统时间，ts90khz是帧的时间戳
 void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
   _rwLock->AcquireLockExclusive();
   if (tMs - _prevMs > 10e3) {
@@ -89,6 +91,7 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
     _firstAfterReset = false;
   }
 
+  //_w[0] = 90.0;_w[1] = 0;
   double residual = (static_cast<double>(unwrapped_ts90khz) - _firstTimestamp) -
                     static_cast<double>(tMs) * _w[0] - _w[1];
   if (DelayChangeDetection(residual) &&
@@ -96,6 +99,8 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
     // A sudden change of average network delay has been detected.
     // Force the filter to adjust its offset parameter by changing
     // the offset uncertainty. Don't do this during startup.
+    //检测到平均网络延迟的突然变化。通过改变偏移不确定度，强制滤波器调整其偏移参数。
+    //不要在启动时这样做。_packetCount来保证。
     _pP[1][1] = _pP11;
   }
 
@@ -105,6 +110,8 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
     _rwLock->ReleaseLockExclusive();
     return;
   }
+
+  //也是卡尔曼滤波
 
   // T = [t(k) 1]';
   // that = T'*w;
@@ -149,6 +156,8 @@ int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
     localTimeMs = -1;
   } else if (_packetCount < _startUpFilterDelayInPackets) {
     //还未到delay需要满足的数量,也就是前几个的时候
+    //视频1秒钟对应90KHZ的采样率
+    //以_prevMs为起点，相对点，_prevMs在上次调用Update时更新
     localTimeMs =
         _prevMs +
         static_cast<int64_t>(
@@ -161,6 +170,9 @@ int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
     } else {
       double timestampDiff =
           unwrapped_ts90khz - static_cast<double>(_firstTimestamp);
+      //推算localTimeMs，_startMs是整个帧的开始时间，timestampDiff是帧内的timestamp
+      //帧的发送时间按线性推算，y=_w[0] * x + _w[1]，已知现在的y=timestampDiff，求x
+      //x即为发送该timestamp的时间
       localTimeMs = static_cast<int64_t>(static_cast<double>(_startMs) +
                                          (timestampDiff - _w[1]) / _w[0] + 0.5);
     }
@@ -170,7 +182,9 @@ int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
 
 // Investigates if the timestamp clock has overflowed since the last timestamp
 // and keeps track of the number of wrap arounds since reset.
-//这个函数跟inter_frame_delay.cc里的VCMInterFrameDelay::CheckForWrapArounds函数差不多
+//这个函数跟inter_frame_delay.cc里的
+//VCMInterFrameDelay::CheckForWrapArounds函数差不多,
+//视频1秒钟对应90KHZ的采样率
 void TimestampExtrapolator::CheckForWrapArounds(uint32_t ts90khz) {
   if (_prevWrapTimestamp == -1) {
     _prevWrapTimestamp = ts90khz;

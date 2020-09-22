@@ -127,6 +127,9 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   	//空帧返回
     return;
   }
+
+  //公式：JitterDelay = theta[0] * (MaxFS – AvgFS) + [noiseStdDevs * sqrt(varNoise) – noiseStdDevOffset]
+  
   //变化值，当前帧大小-以前的帧大小
   int deltaFS = frameSizeBytes - _prevFrameSize;
   if (_fsCount < kFsAccuStartupSamples) {
@@ -139,15 +142,19 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
     _avgFrameSize = static_cast<double>(_fsSum) / static_cast<double>(_fsCount);
     _fsCount++;
   }
-  //要么是不完整的frame，要么当前frameSizeBytes比平均值_avgFrameSize大？
+  //要么是完整的frame，要么当前frameSizeBytes比平均值_avgFrameSize大？
   if (!incompleteFrame || frameSizeBytes > _avgFrameSize) {
     //平均帧大小=0.97*平均值+0.03*当前帧大小。
     double avgFrameSize = _phi * _avgFrameSize + (1 - _phi) * frameSizeBytes;
+
+    //新的帧大小在平均值的两倍中误差范围之间
     if (frameSizeBytes < _avgFrameSize + 2 * sqrt(_varFrameSize)) {
       // Only update the average frame size if this sample wasn't a key frame.
       //仅当此示例不是关键帧时更新平均帧大小。
       _avgFrameSize = avgFrameSize;
     }
+
+
     // Update the variance anyway since we want to capture cases where we only
     // get key frames.
     //无论如何，更新方差，因为我们想捕捉只得到关键帧的情况。
@@ -164,6 +171,7 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   _maxFrameSize =
       VCM_MAX(_psi * _maxFrameSize, static_cast<double>(frameSizeBytes));
 
+  //初始化
   if (_prevFrameSize == 0) {
     _prevFrameSize = frameSizeBytes;
     return;
@@ -186,12 +194,16 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   //即使从延迟的角度来看是一个极端的异常值，如果帧大小也很大，则可能是由于不正确的线斜率造成的。
   double deviation = DeviationFromExpectedDelay(frameDelayMS, deltaFS);
 
-  //_numStdDevDelayOutlier=15，_varNoise=4，_numStdDevFrameSizeOutlier=3，_varFrameSize=100
+  //_numStdDevDelayOutlier=15，_varNoise=4，
+  //_numStdDevFrameSizeOutlier=3，_varFrameSize=100
   if (fabs(deviation) < _numStdDevDelayOutlier * sqrt(_varNoise) ||
       frameSizeBytes >
           _avgFrameSize + _numStdDevFrameSizeOutlier * sqrt(_varFrameSize)) {
+    //deviation在范围内，或者frame大小超过范围（表示是很大的帧）
+
     // Update the variance of the deviation from the line given by the Kalman
     // filter.
+    //更新与Kalman滤波器给出的直线偏差的方差。
     //更新卡尔曼滤波器
     EstimateRandomJitter(deviation, incompleteFrame);
     // Prevent updating with frames which have been congested by a large frame,
@@ -211,9 +223,12 @@ void VCMJitterEstimator::UpdateEstimate(int64_t frameDelayMS,
   } else {
     int nStdDev =
         (deviation >= 0) ? _numStdDevDelayOutlier : -_numStdDevDelayOutlier;
+    //nStdDev * sqrt(_varNoise) = 15 * 2 = 30
     EstimateRandomJitter(nStdDev * sqrt(_varNoise), incompleteFrame);
   }
+  
   // Post process the total estimated jitter
+  //后处理总的估计抖动
   if (_startupCount >= kStartupDelaySamples) {
     PostProcessEstimate();
   } else {
@@ -257,11 +272,14 @@ void VCMJitterEstimator::KalmanEstimateChannel(int64_t frameDelayMS,
   // hMh_sigma = h*M*h' + R
   Mh[0] = _thetaCov[0][0] * deltaFSBytes + _thetaCov[0][1];
   Mh[1] = _thetaCov[1][0] * deltaFSBytes + _thetaCov[1][1];
+
   // sigma weights measurements with a small deltaFS as noisy and
   // measurements with large deltaFS as good
+  //小的当作噪声了，大的当作正常观测值
   if (_maxFrameSize < 1.0) {
     return;
   }
+  //sigma为测量噪声标准差的指数平均滤波结果，即测量噪声协方差R。
   double sigma = (300.0 * exp(-fabs(static_cast<double>(deltaFSBytes)) /
                               (1e0 * _maxFrameSize)) +
                   1) *
@@ -269,17 +287,22 @@ void VCMJitterEstimator::KalmanEstimateChannel(int64_t frameDelayMS,
   if (sigma < 1.0) {
     sigma = 1.0;
   }
+
+  //hMh_sigma = (HDHT + D)^(-1)
   hMh_sigma = deltaFSBytes * Mh[0] + Mh[1] + sigma;
   if ((hMh_sigma < 1e-9 && hMh_sigma >= 0) ||
       (hMh_sigma > -1e-9 && hMh_sigma <= 0)) {
     assert(false);
     return;
   }
+
   kalmanGain[0] = Mh[0] / hMh_sigma;
   kalmanGain[1] = Mh[1] / hMh_sigma;
 
   // Correction
   // theta = theta + K*(dT - h*theta)
+  //状态滤波
+  //frameDelayMS是测量值
   measureRes = frameDelayMS - (deltaFSBytes * _theta[0] + _theta[1]);
   _theta[0] += kalmanGain[0] * measureRes;
   _theta[1] += kalmanGain[1] * measureRes;
@@ -289,6 +312,7 @@ void VCMJitterEstimator::KalmanEstimateChannel(int64_t frameDelayMS,
   }
 
   // M = (I - K*h)*M
+  //滤波方差更新
   t00 = _thetaCov[0][0];
   t01 = _thetaCov[0][1];
   _thetaCov[0][0] = (1 - kalmanGain[0] * deltaFSBytes) * t00 -
@@ -301,6 +325,7 @@ void VCMJitterEstimator::KalmanEstimateChannel(int64_t frameDelayMS,
                     kalmanGain[1] * deltaFSBytes * t01;
 
   // Covariance matrix, must be positive semi-definite.
+  //必须是正定的，防止发散
   assert(_thetaCov[0][0] + _thetaCov[1][1] >= 0 &&
          _thetaCov[0][0] * _thetaCov[1][1] -
                  _thetaCov[0][1] * _thetaCov[1][0] >=
@@ -320,8 +345,10 @@ double VCMJitterEstimator::DeviationFromExpectedDelay(
 // Estimates the random jitter by calculating the variance of the sample
 // distance from the line given by theta.
 //通过计算样本距离θ给出的直线距离的方差来估计随机抖动。
+//d_dT，感觉是噪声
 void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
                                               bool incompleteFrame) {
+  //更新fps_counter_数据以及时间
   uint64_t now = clock_->TimeInMicroseconds();
   if (_lastUpdateT != -1) {
     fps_counter_.AddSample(now - _lastUpdateT);
@@ -332,10 +359,13 @@ void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
     assert(false);
     return;
   }
+  
+  //alpha = pow(399/400, 30/fps)  
   double alpha =
       static_cast<double>(_alphaCount - 1) / static_cast<double>(_alphaCount);
+  //_alphaCount累加
   _alphaCount++;
-  //不超过300
+  //不超过_alphaCountMax=400
   if (_alphaCount > _alphaCountMax)
     _alphaCount = _alphaCountMax;
 
@@ -343,12 +373,15 @@ void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
   // scale the alpha weight relative a 30 fps stream.
   //为了避免低帧速率流对变化反应较慢，请相对于30 fps流缩放alpha权重。
   double fps = GetFrameRate();
+  //其中alpha表示概率系数，受帧率fps影响：当fps变低时，alpha会变小，表示当前噪声变大，
+  //噪声方差受当前噪声影响更大一些。实时帧率越接近30 fps越好。
   if (fps > 0.0) {
     double rate_scale = 30.0 / fps;
     // At startup, there can be a lot of noise in the fps estimate.
     // Interpolate rate_scale linearly, from 1.0 at sample #1, to 30.0 / fps
     // at sample #kStartupDelaySamples.
-    //在启动时，fps估计中可能有很多噪声。线性插值速率刻度，从采样1的1.0到采样kStartupDelaySamples（30）的30.0/fps。
+    //在启动时，fps估计中可能有很多噪声。线性插值速率刻度，
+    //从采样1的1.0到采样kStartupDelaySamples的30.0/fps。kStartupDelaySamples=30。
     if (_alphaCount < kStartupDelaySamples) {
       rate_scale =
           (_alphaCount * rate_scale + (kStartupDelaySamples - _alphaCount)) /
@@ -360,10 +393,13 @@ void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
   double avgNoise = alpha * _avgNoise + (1 - alpha) * d_dT;
   double varNoise =
       alpha * _varNoise + (1 - alpha) * (d_dT - _avgNoise) * (d_dT - _avgNoise);
+
+  //要么是完整的frame，要么当前varNoise比_varNoise大？
   if (!incompleteFrame || varNoise > _varNoise) {
     _avgNoise = avgNoise;
     _varNoise = varNoise;
   }
+
   if (_varNoise < 1.0) {
     // The variance should never be zero, since we might get stuck and consider
     // all samples as outliers.
@@ -372,6 +408,7 @@ void VCMJitterEstimator::EstimateRandomJitter(double d_dT,
 }
 
 double VCMJitterEstimator::NoiseThreshold() const {
+  //_noiseStdDevs=2.33，_varNoise在EstimateRandomJitter中被估计，_noiseStdDevOffset=30
   double noiseThreshold = _noiseStdDevs * sqrt(_varNoise) - _noiseStdDevOffset;
   if (noiseThreshold < 1.0) {
     noiseThreshold = 1.0;
@@ -382,6 +419,7 @@ double VCMJitterEstimator::NoiseThreshold() const {
 // Calculates the current jitter estimate from the filtered estimates.
 //根据过滤后的估计值计算当前抖动估计值。
 double VCMJitterEstimator::CalculateEstimate() {
+  //预测值=帧大小的差/信道传输速率+网络的排队延迟+测量噪声
   double ret = _theta[0] * (_maxFrameSize - _avgFrameSize) + NoiseThreshold();
 
   // A very low estimate (or negative) is neglected.
@@ -418,12 +456,16 @@ int VCMJitterEstimator::GetJitterEstimate(
   double jitterMS = CalculateEstimate() + OPERATING_SYSTEM_JITTER;
   uint64_t now = clock_->TimeInMicroseconds();
 
+  //kNackCountTimeoutMs=60000
   if (now - _latestNackTimestamp > kNackCountTimeoutMs * 1000)
     _nackCount = 0;
 
   if (_filterJitterEstimate > jitterMS)
     jitterMS = _filterJitterEstimate;
+
+  //nack超过数量限制的话，要加上rtt时间
   if (_nackCount >= _nackLimit) {
+    //考虑rtt时间
     if (rttMultAddCapMs.has_value()) {
       jitterMS +=
           std::min(_rttFilter.RttMs() * rttMultiplier, rttMultAddCapMs.value());
@@ -432,11 +474,13 @@ int VCMJitterEstimator::GetJitterEstimate(
     }
   }
 
+  //如果允许减少delay
   if (enable_reduced_delay_) {
     static const double kJitterScaleLowThreshold = 5.0;
     static const double kJitterScaleHighThreshold = 10.0;
     double fps = GetFrameRate();
     // Ignore jitter for very low fps streams.
+    //忽略非常低fps流的抖动。kJitterScaleLowThreshold=5.0
     if (fps < kJitterScaleLowThreshold) {
       if (fps == 0.0) {
         return rtc::checked_cast<int>(std::max(0.0, jitterMS) + 0.5);
@@ -446,6 +490,9 @@ int VCMJitterEstimator::GetJitterEstimate(
 
     // Semi-low frame rate; scale by factor linearly interpolated from 0.0 at
     // kJitterScaleLowThreshold to 1.0 at kJitterScaleHighThreshold.
+    //半低帧速率；按因子线性插值，
+    //从JitterScaleLowThreshold的0.0到kJitterScaleHighThreshold的1.0。
+    //kJitterScaleHighThreshold=10。
     if (fps < kJitterScaleHighThreshold) {
       jitterMS =
           (1.0 / (kJitterScaleHighThreshold - kJitterScaleLowThreshold)) *

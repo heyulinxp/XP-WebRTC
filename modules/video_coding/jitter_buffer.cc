@@ -1010,6 +1010,7 @@ void VCMJitterBuffer::UpdateJitterEstimate(int64_t latest_packet_time_ms,
   //重排序的就不进if,不参与估计jitter_estimate_了
   if (not_reordered) {
     // Update the jitter estimate with the new samples
+    //用新样本更新抖动估计值
     jitter_estimate_.UpdateEstimate(frame_delay, frame_size, incomplete_frame);
   }
 }

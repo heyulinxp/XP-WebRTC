@@ -25,6 +25,7 @@ class VCMJitterEstimator {
   VCMJitterEstimator& operator=(const VCMJitterEstimator& rhs);
 
   // Resets the estimate to the initial state.
+  //将估计重置为初始状态。
   void Reset();
 
   // Updates the jitter estimate with the new data.
@@ -36,6 +37,11 @@ class VCMJitterEstimator {
   //          - incompleteFrame : Flags if the frame is used to update the
   //                              estimate before it was complete.
   //                              Default is false.
+  //用新数据更新抖动估计值。
+  //输入：
+  //-frameDelay：UTILDelayEstimate计算的延迟增量（毫秒）。
+  //-帧大小：当前帧的帧大小。
+  //-incompleteFrame：标记该帧是否在完成之前用于更新估计。默认值为false。
   void UpdateEstimate(int64_t frameDelayMS,
                       uint32_t frameSizeBytes,
                       bool incompleteFrame = false);
@@ -46,6 +52,10 @@ class VCMJitterEstimator {
   //          - rttMultiplier  : RTT param multiplier (when applicable).
   //
   // Return value              : Jitter estimate in milliseconds.
+  //返回当前抖动估计值（毫秒），并在重新传输的情况下添加一个RTT相关项。
+  //输入：
+  //-RTT乘法器：RTT参数乘数（如适用）。
+  //返回值：抖动估计值（毫秒）。
   virtual int GetJitterEstimate(double rttMultiplier,
                                 absl::optional<double> rttMultAddCapMs);
 
@@ -66,6 +76,7 @@ class VCMJitterEstimator {
 
  protected:
   // These are protected for better testing possibilities.
+  //信道传输速率的倒数？斜率theta[0]和网络排队延迟theta[1]
   double _theta[2];  // Estimated line parameters (slope, offset)
   double _varNoise;  // Variance of the time-deviation from the line
 
@@ -78,6 +89,10 @@ class VCMJitterEstimator {
   //                              milliseconds.
   //          - deltaFSBytes    : Frame size delta, i.e. frame size at time T
   //                            : minus frame size at time T-1.
+  //更新描述帧大小相关抖动的行的Kalman滤波器。
+  //输入：
+  //-frameDelayMS：UTILDelayEstimate以毫秒为单位计算的延迟增量。
+  //-deltaFSBytes：帧大小delta，即时间T的帧大小减去时间T-1的帧大小。
   void KalmanEstimateChannel(int64_t frameDelayMS, int32_t deltaFSBytes);
 
   // Updates the random jitter estimate, i.e. the variance of the time
@@ -87,6 +102,10 @@ class VCMJitterEstimator {
   //          - d_dT              : The deviation from the kalman estimate.
   //          - incompleteFrame   : True if the frame used to update the
   //                                estimate with was incomplete.
+  //更新随机抖动估计值，即与Kalman滤波器给定的直线的时间偏差的方差。
+  //输入：
+  //-d_dT：与kalman估计值的偏差。
+  //-不完整帧：如果用于更新估算的帧不完整，则为True。
   void EstimateRandomJitter(double d_dT, bool incompleteFrame);
 
   double NoiseThreshold() const;
@@ -94,9 +113,11 @@ class VCMJitterEstimator {
   // Calculates the current jitter estimate.
   //
   // Return value                 : The current jitter estimate in milliseconds.
+  //计算当前抖动估计值
   double CalculateEstimate();
 
   // Post process the calculated estimate.
+  //后处理计算的估计值。
   void PostProcessEstimate();
 
   // Calculates the difference in delay between a sample and the expected delay
@@ -109,6 +130,11 @@ class VCMJitterEstimator {
   //                              T minus frame size at time T-1.
   //
   // Return value               : The difference in milliseconds.
+  //计算样本与卡尔曼滤波器估计的期望延迟之间的延迟差。
+  //输入：
+  //-frameDelayMS：UtilLayestimate以毫秒为单位计算的延迟增量。
+  //-deltaFS：帧大小delta，即T时刻的帧大小减去T-1时刻的帧大小。
+  //返回值：以毫秒为单位的差值。
   double DeviationFromExpectedDelay(int64_t frameDelayMS,
                                     int32_t deltaFSBytes) const;
 

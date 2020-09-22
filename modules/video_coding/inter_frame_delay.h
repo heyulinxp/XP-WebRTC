@@ -33,6 +33,13 @@ class VCMInterFrameDelay {
   //                                Should be -1 for normal operation, only used
   //                                for testing.
   // Return value                 : true if OK, false when reordered timestamps.
+  //计算具有给定时间戳的帧的延迟。
+  //此方法在帧完成时调用。
+  //输入：
+  //-时间戳：接收帧的RTP时间戳。
+  //-*延迟：指向存储结果的内存的指针。
+  //-currentWallClock：以毫秒为单位的当前时间。正常运行应为-1，仅用于测试。
+  //返回值：如果确定，则返回true；如果重新排序时间戳，则返回false。
   bool CalculateDelay(uint32_t timestamp,
                       int64_t* delay,
                       int64_t currentWallClock);
