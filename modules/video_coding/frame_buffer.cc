@@ -101,16 +101,18 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
     }
   }
   //计算需要的大小，不够的话先进行扩容
+
+  size_t oldSize = encoded_image_buffer_ ? encoded_image_buffer_->size() : 0;
   uint32_t requiredSizeBytes =
       size() + packet.sizeBytes +
       (packet.insertStartCode ? kH264StartCodeLengthBytes : 0);
-  if (requiredSizeBytes > capacity()) {
+  if (requiredSizeBytes > oldSize) {
     const uint8_t* prevBuffer = data();
 	//增加的空间大小是kBufferIncStepSizeBytes（30000）的倍数
     const uint32_t increments =
         requiredSizeBytes / kBufferIncStepSizeBytes +
         (requiredSizeBytes % kBufferIncStepSizeBytes > 0);
-    const uint32_t newSize = capacity() + increments * kBufferIncStepSizeBytes;
+    const uint32_t newSize = oldSize + increments * kBufferIncStepSizeBytes;
     if (newSize > kMaxJBFrameSizeBytes) {
       RTC_LOG(LS_ERROR) << "Failed to insert packet due to frame being too "
                            "big.";
