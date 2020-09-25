@@ -144,8 +144,11 @@ int NackModule2::OnReceivedPacket(uint16_t seq_num,
   //                 retransmitted or not, use that value instead. For
   //                 now set it to true, which will cause the reordering
   //                 statistics to never be updated.
+  //TODO（philipel）：当数据包包含信息时，不管它是否被重传，都使用该值。
+  //现在将其设置为true，这将导致重新排序的统计信息永远不会更新。
   bool is_retransmitted = true;
 
+  //初始化
   if (!initialized_) {
     newest_seq_num_ = seq_num;
     if (is_keyframe)
@@ -156,11 +159,13 @@ int NackModule2::OnReceivedPacket(uint16_t seq_num,
 
   // Since the |newest_seq_num_| is a packet we have actually received we know
   // that packet has never been Nacked.
+  //由于|newest_seq_num_|是我们实际收到的一个包，我们知道包从未被nack。
   if (seq_num == newest_seq_num_)
     return 0;
 
   if (AheadOf(newest_seq_num_, seq_num)) {
     // An out of order packet has been received.
+    //收到一个无序的数据包。
     auto nack_list_it = nack_list_.find(seq_num);
     int nacks_sent_for_packet = 0;
     if (nack_list_it != nack_list_.end()) {
@@ -326,9 +331,11 @@ std::vector<uint16_t> NackModule2::GetNackBatch(NackFilterOptions options) {
   return nack_batch;
 }
 
+//更新无序包的数据情况
 void NackModule2::UpdateReorderingStatistics(uint16_t seq_num) {
   // Running on worker_thread_.
   RTC_DCHECK(AheadOf(newest_seq_num_, seq_num));
+  //newest_seq_num_ - seq_num
   uint16_t diff = ReverseDiff(newest_seq_num_, seq_num);
   reordering_histogram_.Add(diff);
 }

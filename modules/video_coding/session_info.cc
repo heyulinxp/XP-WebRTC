@@ -466,6 +466,7 @@ int VCMSessionInfo::InsertPacket(const VCMPacket& packet,
   // order and insert it. Loop over the list in reverse order.
   //在数据包列表中按序号顺序查找此数据包的位置并将其插入。按相反的顺序遍历列表。
   ReversePacketIterator rit = packets_.rbegin();
+  //直到seqNum比packet.seqNum小
   for (; rit != packets_.rend(); ++rit)
     if (LatestSequenceNumber(packet.seqNum, (*rit).seqNum) == packet.seqNum)
       break;

@@ -85,7 +85,7 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
   if (packet.dataPtr != NULL) {
     _payloadType = packet.payloadType;
   }
-
+  //刚开始空帧时，做一些特殊处理
   if (kStateEmpty == _state) {
     // First packet (empty and/or media) inserted into this frame.
     // store some info and set some initial values.
@@ -100,7 +100,7 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
       SetState(kStateIncomplete);
     }
   }
-
+  //计算需要的大小，不够的话先进行扩容
   uint32_t requiredSizeBytes =
       size() + packet.sizeBytes +
       (packet.insertStartCode ? kH264StartCodeLengthBytes : 0);

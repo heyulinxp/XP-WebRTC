@@ -23,6 +23,8 @@ namespace webrtc {
 // Class to efficiently get the percentile value from a group of observations.
 // The percentile is the value below which a given percentage of the
 // observations fall.
+//类有效地从一组观察值中获取百分位值。
+//百分位数是观察值的给定百分比低于该值的值。
 template <typename T>
 class PercentileFilter {
  public:

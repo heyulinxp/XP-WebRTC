@@ -575,6 +575,7 @@ void VideoReceiveStream::OnCompleteFrame(
     UpdatePlayoutDelays();
   }
 
+  //调用framebuffer的InsertFrame
   int64_t last_continuous_pid = frame_buffer_->InsertFrame(std::move(frame));
   if (last_continuous_pid != -1)
     rtp_video_stream_receiver_.FrameContinuous(last_continuous_pid);
