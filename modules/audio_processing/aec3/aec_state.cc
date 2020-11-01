@@ -197,8 +197,10 @@ void AecState::Update(
 
   // Analyze the filter outputs and filters.
   bool any_filter_converged;
+  bool any_coarse_filter_converged;
   bool all_filters_diverged;
   subtractor_output_analyzer_.Update(subtractor_output, &any_filter_converged,
+                                     &any_coarse_filter_converged,
                                      &all_filters_diverged);
 
   bool any_filter_consistent;
@@ -272,10 +274,10 @@ void AecState::Update(
 
   // Detect whether the transparent mode should be activated.
   if (transparent_state_) {
-    transparent_state_->Update(delay_state_.MinDirectPathFilterDelay(),
-                               any_filter_consistent, any_filter_converged,
-                               all_filters_diverged, active_render,
-                               SaturatedCapture());
+    transparent_state_->Update(
+        delay_state_.MinDirectPathFilterDelay(), any_filter_consistent,
+        any_filter_converged, any_coarse_filter_converged, all_filters_diverged,
+        active_render, SaturatedCapture());
   }
 
   // Analyze the quality of the filter.
@@ -312,6 +314,8 @@ void AecState::Update(
   data_dumper_->DumpRaw("aec3_capture_saturation", SaturatedCapture());
   data_dumper_->DumpRaw("aec3_echo_saturation", SaturatedEcho());
   data_dumper_->DumpRaw("aec3_any_filter_converged", any_filter_converged);
+  data_dumper_->DumpRaw("aec3_any_coarse_filter_converged",
+                        any_coarse_filter_converged);
   data_dumper_->DumpRaw("aec3_all_filters_diverged", all_filters_diverged);
 
   data_dumper_->DumpRaw("aec3_external_delay_avaliable",
@@ -350,8 +354,9 @@ void AecState::InitialState::InitialState::Update(bool active_render,
 
 AecState::FilterDelay::FilterDelay(const EchoCanceller3Config& config,
                                    size_t num_capture_channels)
-    : delay_headroom_samples_(config.delay.delay_headroom_samples),
-      filter_delays_blocks_(num_capture_channels, 0) {}
+    : delay_headroom_blocks_(config.delay.delay_headroom_samples / kBlockSize),
+      filter_delays_blocks_(num_capture_channels, delay_headroom_blocks_),
+      min_filter_delay_(delay_headroom_blocks_) {}
 
 void AecState::FilterDelay::Update(
     rtc::ArrayView<const int> analyzer_filter_delay_estimates_blocks,
@@ -369,7 +374,7 @@ void AecState::FilterDelay::Update(
   const bool delay_estimator_may_not_have_converged =
       blocks_with_proper_filter_adaptation < 2 * kNumBlocksPerSecond;
   if (delay_estimator_may_not_have_converged && external_delay_) {
-    int delay_guess = delay_headroom_samples_ / kBlockSize;
+    const int delay_guess = delay_headroom_blocks_;
     std::fill(filter_delays_blocks_.begin(), filter_delays_blocks_.end(),
               delay_guess);
   } else {

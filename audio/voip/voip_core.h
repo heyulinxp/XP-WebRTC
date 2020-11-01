@@ -26,6 +26,7 @@
 #include "api/voip/voip_dtmf.h"
 #include "api/voip/voip_engine.h"
 #include "api/voip/voip_network.h"
+#include "api/voip/voip_statistics.h"
 #include "audio/audio_transport_impl.h"
 #include "audio/voip/audio_channel.h"
 #include "modules/audio_device/include/audio_device.h"
@@ -47,25 +48,31 @@ class VoipCore : public VoipEngine,
                  public VoipBase,
                  public VoipNetwork,
                  public VoipCodec,
-                 public VoipDtmf {
+                 public VoipDtmf,
+                 public VoipStatistics {
  public:
   ~VoipCore() override = default;
 
   // Initialize VoipCore components with provided arguments.
   // Returns false only when |audio_device_module| fails to initialize which
   // would presumably render further processing useless.
+  // ProcessThread implementation can be injected by |process_thread|
+  // (mainly for testing purpose) and when set to nullptr, default
+  // implementation will be used.
   // TODO(natim@webrtc.org): Need to report audio device errors to user layer.
   bool Init(rtc::scoped_refptr<AudioEncoderFactory> encoder_factory,
             rtc::scoped_refptr<AudioDecoderFactory> decoder_factory,
             std::unique_ptr<TaskQueueFactory> task_queue_factory,
             rtc::scoped_refptr<AudioDeviceModule> audio_device_module,
-            rtc::scoped_refptr<AudioProcessing> audio_processing);
+            rtc::scoped_refptr<AudioProcessing> audio_processing,
+            std::unique_ptr<ProcessThread> process_thread = nullptr);
 
   // Implements VoipEngine interfaces.
   VoipBase& Base() override { return *this; }
   VoipNetwork& Network() override { return *this; }
   VoipCodec& Codec() override { return *this; }
   VoipDtmf& Dtmf() override { return *this; }
+  VoipStatistics& Statistics() override { return *this; }
 
   // Implements VoipBase interfaces.
   absl::optional<ChannelId> CreateChannel(
@@ -98,6 +105,10 @@ class VoipCore : public VoipEngine,
   bool SendDtmfEvent(ChannelId channel,
                      DtmfEvent dtmf_event,
                      int duration_ms) override;
+
+  // Implements VoipStatistics interfaces.
+  absl::optional<NetEqLifetimeStatistics> GetNetEqStatistics(
+      ChannelId channel) override;
 
  private:
   // Fetches the corresponding AudioChannel assigned with given |channel|.

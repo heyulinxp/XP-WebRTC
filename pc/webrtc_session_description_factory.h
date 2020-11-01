@@ -12,7 +12,6 @@
 #define PC_WEBRTC_SESSION_DESCRIPTION_FACTORY_H_
 
 #include <stdint.h>
-
 #include <memory>
 #include <queue>
 #include <string>
@@ -22,14 +21,16 @@
 #include "api/scoped_refptr.h"
 #include "p2p/base/transport_description.h"
 #include "p2p/base/transport_description_factory.h"
+#include "pc/channel_manager.h"
 #include "pc/media_session.h"
-#include "pc/peer_connection_internal.h"
+#include "pc/sdp_state_provider.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/message_handler.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/rtc_certificate_generator.h"
 #include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
+#include "rtc_base/thread_message.h"
 #include "rtc_base/unique_id_generator.h"
 
 namespace webrtc {
@@ -80,8 +81,9 @@ class WebRtcSessionDescriptionFactory : public rtc::MessageHandler,
   WebRtcSessionDescriptionFactory(
       rtc::Thread* signaling_thread,
       cricket::ChannelManager* channel_manager,
-      PeerConnectionInternal* pc,
+      const SdpStateProvider* sdp_info,
       const std::string& session_id,
+      bool dtls_enabled,
       std::unique_ptr<rtc::RTCCertificateGeneratorInterface> cert_generator,
       const rtc::scoped_refptr<rtc::RTCCertificate>& certificate,
       rtc::UniqueRandomIdGenerator* ssrc_generator);
@@ -151,9 +153,7 @@ class WebRtcSessionDescriptionFactory : public rtc::MessageHandler,
   cricket::MediaSessionDescriptionFactory session_desc_factory_;
   uint64_t session_version_;
   const std::unique_ptr<rtc::RTCCertificateGeneratorInterface> cert_generator_;
-  // TODO(jiayl): remove the dependency on peer connection once bug 2264 is
-  // fixed.
-  PeerConnectionInternal* const pc_;
+  const SdpStateProvider* sdp_info_;
   const std::string session_id_;
   CertificateRequestState certificate_request_state_;
 

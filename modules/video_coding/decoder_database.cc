@@ -98,7 +98,7 @@ bool VCMDecoderDataBase::DeregisterReceiveCodec(uint8_t payload_type) {
   dec_map_.erase(it);
   if (payload_type == current_payload_type_) {
     // This codec is currently in use.
-    memset(&receive_codec_, 0, sizeof(VideoCodec));
+    receive_codec_ = {};
     current_payload_type_ = 0;
   }
   return true;
@@ -116,7 +116,7 @@ VCMGenericDecoder* VCMDecoderDataBase::GetDecoder(
   // If decoder exists - delete.
   if (ptr_decoder_) {
     ptr_decoder_.reset();
-    memset(&receive_codec_, 0, sizeof(VideoCodec));
+    receive_codec_ = {};
     current_payload_type_ = 0;
   }
   ptr_decoder_ = CreateAndInitDecoder(frame, &receive_codec_);
@@ -129,7 +129,7 @@ VCMGenericDecoder* VCMDecoderDataBase::GetDecoder(
   if (ptr_decoder_->RegisterDecodeCompleteCallback(decoded_frame_callback) <
       0) {
     ptr_decoder_.reset();
-    memset(&receive_codec_, 0, sizeof(VideoCodec));
+    receive_codec_ = {};
     current_payload_type_ = 0;
     return nullptr;
   }
@@ -183,7 +183,7 @@ std::unique_ptr<VCMGenericDecoder> VCMDecoderDataBase::CreateAndInitDecoder(
     RTC_LOG(LS_ERROR) << "Failed to initialize decoder. Error code: " << err;
     return nullptr;
   }
-  memcpy(new_codec, decoder_item->settings.get(), sizeof(VideoCodec));
+  *new_codec = *decoder_item->settings.get();
   return ptr_decoder;
 }
 

@@ -70,11 +70,6 @@ void VCMFrameBuffer::SetGofInfo(const GofInfoVP9& gof_info, size_t idx) {
       gof_info.temporal_up_switch[idx];
 }
 
-bool VCMFrameBuffer::IsSessionComplete() const {
-  TRACE_EVENT0("webrtc", "VCMFrameBuffer::IsSessionComplete");
-  return _sessionInfo.complete();
-}
-
 // Insert packet
 //插入packet，返回插入结果VCMFrameBufferEnum
 VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
@@ -140,7 +135,9 @@ VCMFrameBufferEnum VCMFrameBuffer::InsertPacket(const VCMPacket& packet,
     CopyCodecSpecific(&packet.video_header);
 
   //插入packet，返回值如果是负数，则是错误码；正数则是增加的大小
-  int retVal = _sessionInfo.InsertPacket(packet, data(), frame_data);
+  int retVal = _sessionInfo.InsertPacket(
+      packet, encoded_image_buffer_ ? encoded_image_buffer_->data() : nullptr,
+      frame_data);
   if (retVal == -1) {
     return kSizeError;
   } else if (retVal == -2) {
@@ -272,7 +269,6 @@ void VCMFrameBuffer::PrepareForDecode(bool continuous) {
   // specific information.
   //将帧信息传输到EncodedFrame并创建任何特定于编解码器的信息。
   _frameType = _sessionInfo.FrameType();
-  _completeFrame = _sessionInfo.complete();
   _missingFrame = !continuous;
 }
 

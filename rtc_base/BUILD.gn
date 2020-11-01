@@ -48,15 +48,16 @@ rtc_source_set("untyped_function") {
   deps = [ "system:assume" ]
 }
 
-rtc_source_set("robo_caller") {
+rtc_source_set("callback_list") {
   sources = [
-    "robo_caller.cc",
-    "robo_caller.h",
+    "callback_list.cc",
+    "callback_list.h",
   ]
   deps = [
     ":untyped_function",
     "../api:function_view",
     "system:assume",
+    "system:inline",
   ]
 }
 
@@ -123,6 +124,12 @@ rtc_library("rtc_base_approved") {
 
   if (is_win) {
     sources += [
+      "win/get_activation_factory.cc",
+      "win/get_activation_factory.h",
+      "win/hstring.cc",
+      "win/hstring.h",
+      "win/scoped_com_initializer.cc",
+      "win/scoped_com_initializer.h",
       "win/windows_version.cc",
       "win/windows_version.h",
     ]
@@ -151,17 +158,15 @@ rtc_library("rtc_base_approved") {
     ":stringutils",
     ":thread_checker",
     ":timeutils",
+    "synchronization:sequence_checker",
   ]
 }
 
 rtc_source_set("macromagic") {
-  # TODO(bugs.webrtc.org/9606): This should not be public.
-  visibility = [ "*" ]
   sources = [
     "arraysize.h",
     "constructor_magic.h",
     "format_macros.h",
-    "stringize_macros.h",
     "thread_annotations.h",
   ]
   deps = [ "system:arch" ]
@@ -599,7 +604,6 @@ rtc_library("rtc_numerics") {
   ]
   deps = [
     ":checks",
-    ":macromagic",
     ":rtc_base_approved",
   ]
   absl_deps = [ "//third_party/abseil-cpp/absl/types:optional" ]
@@ -784,12 +788,26 @@ if (is_android) {
 
 if (is_win) {
   rtc_source_set("win32") {
-    # TODO(bugs.webrtc.org/9987): This build target will soon contain
-    #                             the following files:
-    # sources = [
-    #   "win32.cc",
-    #   "win32.h",
-    # ]
+    sources = [
+      "win32.cc",
+      "win32.h",
+      "win32_window.cc",
+      "win32_window.h",
+    ]
+
+    deps = [
+      ":checks",
+      ":macromagic",
+      ":rtc_base_approved",
+    ]
+
+    libs = [
+      "crypt32.lib",
+      "iphlpapi.lib",
+      "secur32.lib",
+    ]
+
+    defines = [ "_CRT_NONSTDC_NO_DEPRECATE" ]
   }
 }
 
@@ -817,6 +835,7 @@ rtc_library("rtc_base") {
     "system:inline",
     "system:rtc_export",
     "task_utils:pending_task_safety_flag",
+    "task_utils:repeating_task",
     "task_utils:to_queued_task",
     "third_party/base64",
     "third_party/sigslot",
@@ -1004,20 +1023,7 @@ rtc_library("rtc_base") {
   }
 
   if (is_win) {
-    sources += [
-      "win32.cc",
-      "win32.h",
-      "win32_window.cc",
-      "win32_window.h",
-    ]
-
-    libs += [
-      "crypt32.lib",
-      "iphlpapi.lib",
-      "secur32.lib",
-    ]
-
-    defines += [ "_CRT_NONSTDC_NO_DEPRECATE" ]
+    deps += [ ":win32" ]
   }
 
   if (is_posix || is_fuchsia) {
@@ -1065,7 +1071,6 @@ rtc_library("testclient") {
   deps = [
     ":criticalsection",
     ":gunit_helpers",
-    ":macromagic",
     ":rtc_base",
     ":rtc_base_tests_utils",
     ":timeutils",
@@ -1073,13 +1078,13 @@ rtc_library("testclient") {
   ]
 }
 
-rtc_library("robo_caller_unittests") {
+rtc_library("callback_list_unittests") {
   testonly = true
 
-  sources = [ "robo_caller_unittest.cc" ]
+  sources = [ "callback_list_unittest.cc" ]
   deps = [
+    ":callback_list",
     ":gunit_helpers",
-    ":robo_caller",
     ":rtc_base",
     "../api:function_view",
     "../test:test_support",
@@ -1149,7 +1154,6 @@ rtc_library("task_queue_for_test") {
   ]
   deps = [
     ":checks",
-    ":macromagic",
     ":rtc_base_approved",
     ":rtc_event",
     ":rtc_task_queue",
@@ -1250,7 +1254,6 @@ if (rtc_include_tests) {
       "string_encode_unittest.cc",
       "string_to_number_unittest.cc",
       "string_utils_unittest.cc",
-      "stringize_macros_unittest.cc",
       "strings/string_builder_unittest.cc",
       "strings/string_format_unittest.cc",
       "swap_queue_unittest.cc",
@@ -1406,22 +1409,6 @@ if (rtc_include_tests) {
       "thread_unittest.cc",
       "unique_id_generator_unittest.cc",
     ]
-    if (is_win) {
-      sources += [
-        "win32_unittest.cc",
-        "win32_window_unittest.cc",
-      ]
-    }
-    if (is_posix || is_fuchsia) {
-      sources += [
-        "openssl_adapter_unittest.cc",
-        "openssl_session_cache_unittest.cc",
-        "openssl_utility_unittest.cc",
-        "ssl_adapter_unittest.cc",
-        "ssl_identity_unittest.cc",
-        "ssl_stream_adapter_unittest.cc",
-      ]
-    }
     deps = [
       ":checks",
       ":gunit_helpers",
@@ -1439,9 +1426,27 @@ if (rtc_include_tests) {
       "memory:fifo_buffer",
       "synchronization:mutex",
       "synchronization:synchronization_unittests",
+      "task_utils:pending_task_safety_flag",
       "task_utils:to_queued_task",
       "third_party/sigslot",
     ]
+    if (is_win) {
+      sources += [
+        "win32_unittest.cc",
+        "win32_window_unittest.cc",
+      ]
+      deps += [ ":win32" ]
+    }
+    if (is_posix || is_fuchsia) {
+      sources += [
+        "openssl_adapter_unittest.cc",
+        "openssl_session_cache_unittest.cc",
+        "openssl_utility_unittest.cc",
+        "ssl_adapter_unittest.cc",
+        "ssl_identity_unittest.cc",
+        "ssl_stream_adapter_unittest.cc",
+      ]
+    }
     absl_deps = [
       "//third_party/abseil-cpp/absl/algorithm:container",
       "//third_party/abseil-cpp/absl/memory",

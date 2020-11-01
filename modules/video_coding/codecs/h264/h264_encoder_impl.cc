@@ -110,7 +110,8 @@ static void RtpFragmentize(EncodedImage* encoded_image, SFrameBSInfo* info) {
     }
   }
   // TODO(nisse): Use a cache or buffer pool to avoid allocation?
-  encoded_image->SetEncodedData(EncodedImageBuffer::Create(required_capacity));
+  auto buffer = EncodedImageBuffer::Create(required_capacity);
+  encoded_image->SetEncodedData(buffer);
 
   // Iterate layers and NAL units, note each NAL unit as a fragment and copy
   // the data to |encoded_image->_buffer|.
@@ -132,8 +133,7 @@ static void RtpFragmentize(EncodedImage* encoded_image, SFrameBSInfo* info) {
       layer_len += layerInfo.pNalLengthInByte[nal];
     }
     // Copy the entire layer's data (including start codes).
-    memcpy(encoded_image->data() + encoded_image->size(), layerInfo.pBsBuf,
-           layer_len);
+    memcpy(buffer->data() + encoded_image->size(), layerInfo.pBsBuf, layer_len);
     encoded_image->set_size(encoded_image->size() + layer_len);
   }
 }
@@ -275,7 +275,6 @@ int32_t H264EncoderImpl::InitEncode(const VideoCodec* inst,
         CalcBufferSize(VideoType::kI420, codec_.simulcastStream[idx].width,
                        codec_.simulcastStream[idx].height);
     encoded_images_[i].SetEncodedData(EncodedImageBuffer::Create(new_capacity));
-    encoded_images_[i]._completeFrame = true;
     encoded_images_[i]._encodedWidth = codec_.simulcastStream[idx].width;
     encoded_images_[i]._encodedHeight = codec_.simulcastStream[idx].height;
     encoded_images_[i].set_size(0);
@@ -545,6 +544,12 @@ SEncParamExt H264EncoderImpl::CreateEncoderParams(size_t i) const {
   // |uiIntraPeriod|    - multiple of GOP size
   // |keyFrameInterval| - number of frames
   encoder_params.uiIntraPeriod = configurations_[i].key_frame_interval;
+  // Reuse SPS id if possible. This helps to avoid reset of chromium HW decoder
+  // on each key-frame.
+  // Note that WebRTC resets encoder on resolution change which makes all
+  // EParameterSetStrategy modes except INCREASING_ID (default) essentially
+  // equivalent to CONSTANT_ID.
+  encoder_params.eSpsPpsIdStrategy = SPS_LISTING;
   encoder_params.uiMaxNalSize = 0;
   // Threading model: use auto.
   //  0: auto (dynamic imp. internal encoder)
@@ -615,6 +620,7 @@ VideoEncoder::EncoderInfo H264EncoderImpl::GetEncoderInfo() const {
   info.is_hardware_accelerated = false;
   info.has_internal_source = false;
   info.supports_simulcast = true;
+  info.preferred_pixel_formats = {VideoFrameBuffer::Type::kI420};
   return info;
 }
 

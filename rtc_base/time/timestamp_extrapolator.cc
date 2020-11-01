@@ -14,9 +14,9 @@
 
 namespace webrtc {
 
+//整个去掉了曾经的_rwLock(RWLockWrapper::CreateRWLock())
 TimestampExtrapolator::TimestampExtrapolator(int64_t start_ms)
-    : _rwLock(RWLockWrapper::CreateRWLock()),
-      _startMs(0),
+    : _startMs(0),
       _firstTimestamp(0),
       _wrapArounds(0),
       _prevUnwrappedTimestamp(-1),
@@ -34,12 +34,7 @@ TimestampExtrapolator::TimestampExtrapolator(int64_t start_ms)
   Reset(start_ms);
 }
 
-TimestampExtrapolator::~TimestampExtrapolator() {
-  delete _rwLock;
-}
-
 void TimestampExtrapolator::Reset(int64_t start_ms) {
-  WriteLockScoped wl(*_rwLock);
   _startMs = start_ms;
   _prevMs = _startMs;
   _firstTimestamp = 0;
@@ -60,14 +55,10 @@ void TimestampExtrapolator::Reset(int64_t start_ms) {
 //更新时间
 //tMs是系统时间，ts90khz是帧的时间戳
 void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
-  _rwLock->AcquireLockExclusive();
   if (tMs - _prevMs > 10e3) {
     // Ten seconds without a complete frame.
     // Reset the extrapolator
-    //十秒钟没有完整的画面。重置外推器。
-    _rwLock->ReleaseLockExclusive();
     Reset(tMs);
-    _rwLock->AcquireLockExclusive();
   } else {
     _prevMs = tMs;
   }
@@ -107,7 +98,6 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
   if (_prevUnwrappedTimestamp >= 0 &&
       unwrapped_ts90khz < _prevUnwrappedTimestamp) {
     // Drop reordered frames.
-    _rwLock->ReleaseLockExclusive();
     return;
   }
 
@@ -140,12 +130,10 @@ void TimestampExtrapolator::Update(int64_t tMs, uint32_t ts90khz) {
   if (_packetCount < _startUpFilterDelayInPackets) {
     _packetCount++;
   }
-  _rwLock->ReleaseLockExclusive();
 }
 
 //发送端发送时间计算函数
 int64_t TimestampExtrapolator::ExtrapolateLocalTime(uint32_t timestamp90khz) {
-  ReadLockScoped rl(*_rwLock);
   int64_t localTimeMs = 0;
   CheckForWrapArounds(timestamp90khz);
   double unwrapped_ts90khz =
