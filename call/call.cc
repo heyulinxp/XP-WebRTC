@@ -31,6 +31,7 @@
 #include "call/receive_time_calculator.h"
 #include "call/rtp_stream_receiver_controller.h"
 #include "call/rtp_transport_controller_send.h"
+#include "call/version.h"
 #include "logging/rtc_event_log/events/rtc_event_audio_receive_stream_config.h"
 #include "logging/rtc_event_log/events/rtc_event_rtcp_packet_incoming.h"
 #include "logging/rtc_event_log/events/rtc_event_rtp_packet_incoming.h"
@@ -51,6 +52,7 @@
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/sequence_checker.h"
+#include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/task_utils/pending_task_safety_flag.h"
 #include "rtc_base/thread_annotations.h"
 #include "rtc_base/time_utils.h"
@@ -535,7 +537,7 @@ class SharedModuleThread::Impl {
   }
 
  private:
-  SequenceChecker sequence_checker_;
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;
   mutable int ref_count_ RTC_GUARDED_BY(sequence_checker_) = 0;
   std::unique_ptr<ProcessThread> const module_thread_;
   std::function<void()> const on_one_ref_remaining_;
@@ -625,6 +627,10 @@ Call::Call(Clock* clock,
   RTC_DCHECK(config.event_log != nullptr);
   RTC_DCHECK(config.trials != nullptr);
   RTC_DCHECK(worker_thread_->IsCurrent());
+
+  // Do not remove this call; it is here to convince the compiler that the
+  // WebRTC source timestamp string needs to be in the final binary.
+  LoadWebRTCVersionInRegister();
 
   call_stats_->RegisterStatsObserver(&receive_side_cc_);
 

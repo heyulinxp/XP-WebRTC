@@ -31,9 +31,9 @@
 #include "system_wrappers/include/clock.h"
 #include "test/network/cross_traffic.h"
 #include "test/network/emulated_network_manager.h"
+#include "test/network/emulated_turn_server.h"
 #include "test/network/fake_network_socket_server.h"
 #include "test/network/network_emulation.h"
-#include "test/network/traffic_route.h"
 
 namespace webrtc {
 namespace test {
@@ -43,8 +43,8 @@ class NetworkEmulationManagerImpl : public NetworkEmulationManager {
   explicit NetworkEmulationManagerImpl(TimeMode mode);
   ~NetworkEmulationManagerImpl();
 
-  EmulatedNetworkNode* CreateEmulatedNode(
-      BuiltInNetworkBehaviorConfig config) override;
+  EmulatedNetworkNode* CreateEmulatedNode(BuiltInNetworkBehaviorConfig config,
+                                          uint64_t random_seed = 1) override;
   EmulatedNetworkNode* CreateEmulatedNode(
       std::unique_ptr<NetworkBehaviorInterface> network_behavior) override;
 
@@ -63,23 +63,15 @@ class NetworkEmulationManagerImpl : public NetworkEmulationManager {
 
   void ClearRoute(EmulatedRoute* route) override;
 
-  TrafficRoute* CreateTrafficRoute(
-      const std::vector<EmulatedNetworkNode*>& via_nodes);
-  RandomWalkCrossTraffic* CreateRandomWalkCrossTraffic(
-      TrafficRoute* traffic_route,
-      RandomWalkConfig config);
-  PulsedPeaksCrossTraffic* CreatePulsedPeaksCrossTraffic(
-      TrafficRoute* traffic_route,
-      PulsedPeaksConfig config);
-  FakeTcpCrossTraffic* StartFakeTcpCrossTraffic(
-      std::vector<EmulatedNetworkNode*> send_link,
-      std::vector<EmulatedNetworkNode*> ret_link,
-      FakeTcpConfig config);
-
   TcpMessageRoute* CreateTcpRoute(EmulatedRoute* send_route,
                                   EmulatedRoute* ret_route) override;
 
-  void StopCrossTraffic(FakeTcpCrossTraffic* traffic);
+  CrossTrafficRoute* CreateCrossTrafficRoute(
+      const std::vector<EmulatedNetworkNode*>& via_nodes) override;
+
+  CrossTrafficGenerator* StartCrossTraffic(
+      std::unique_ptr<CrossTrafficGenerator> generator) override;
+  void StopCrossTraffic(CrossTrafficGenerator* generator) override;
 
   EmulatedNetworkManagerInterface* CreateEmulatedNetworkManagerInterface(
       const std::vector<EmulatedEndpoint*>& endpoints) override;
@@ -92,7 +84,13 @@ class NetworkEmulationManagerImpl : public NetworkEmulationManager {
 
   Timestamp Now() const;
 
+  EmulatedTURNServerInterface* CreateTURNServer(
+      EmulatedTURNServerConfig config) override;
+
  private:
+  using CrossTrafficSource =
+      std::pair<std::unique_ptr<CrossTrafficGenerator>, RepeatingTaskHandle>;
+
   absl::optional<rtc::IPAddress> GetNextIPv4Address();
   const std::unique_ptr<TimeController> time_controller_;
   Clock* const clock_;
@@ -107,13 +105,12 @@ class NetworkEmulationManagerImpl : public NetworkEmulationManager {
   std::vector<std::unique_ptr<EmulatedEndpoint>> endpoints_;
   std::vector<std::unique_ptr<EmulatedNetworkNode>> network_nodes_;
   std::vector<std::unique_ptr<EmulatedRoute>> routes_;
-  std::vector<std::unique_ptr<TrafficRoute>> traffic_routes_;
-  std::vector<std::unique_ptr<RandomWalkCrossTraffic>> random_cross_traffics_;
-  std::vector<std::unique_ptr<PulsedPeaksCrossTraffic>> pulsed_cross_traffics_;
-  std::list<std::unique_ptr<FakeTcpCrossTraffic>> tcp_cross_traffics_;
+  std::vector<std::unique_ptr<CrossTrafficRoute>> traffic_routes_;
+  std::vector<CrossTrafficSource> cross_traffics_;
   std::list<std::unique_ptr<TcpMessageRouteImpl>> tcp_message_routes_;
   std::vector<std::unique_ptr<EndpointsContainer>> endpoints_containers_;
   std::vector<std::unique_ptr<EmulatedNetworkManager>> network_managers_;
+  std::vector<std::unique_ptr<EmulatedTURNServer>> turn_servers_;
 
   std::map<EmulatedEndpoint*, EmulatedNetworkManager*>
       endpoint_to_network_manager_;

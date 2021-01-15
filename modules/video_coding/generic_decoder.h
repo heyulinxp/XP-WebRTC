@@ -112,7 +112,6 @@ class VCMGenericDecoder {
    */
   int32_t RegisterDecodeCompleteCallback(VCMDecodedFrameCallback* callback);
 
-  bool PrefersLateDecoding() const;
   bool IsSameDecoder(VideoDecoder* decoder) const {
     return decoder_.get() == decoder;
   }
@@ -125,7 +124,7 @@ class VCMGenericDecoder {
   VideoCodecType _codecType;
   const bool _isExternal;
   VideoContentType _last_keyframe_content_type;
-  std::string implementation_name_;
+  VideoDecoder::DecoderInfo decoder_info_;
 };
 
 }  // namespace webrtc

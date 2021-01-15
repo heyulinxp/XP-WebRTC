@@ -299,24 +299,6 @@ rtc_source_set("video_frame_metadata") {
   ]
 }
 
-rtc_library("video_stream_encoder_create") {
-  visibility = [ "*" ]
-  sources = [
-    "video_stream_encoder_create.cc",
-    "video_stream_encoder_create.h",
-  ]
-
-  deps = [
-    ":video_frame",
-    ":video_stream_encoder",
-    "../../api:scoped_refptr",
-    "../../video:video_stream_encoder_impl",
-    "../../video/adaptation:video_adaptation",
-    "../task_queue",
-    "../video_codecs:video_codecs_api",
-  ]
-}
-
 rtc_library("builtin_video_bitrate_allocator_factory") {
   visibility = [ "*" ]
   sources = [
@@ -331,7 +313,7 @@ rtc_library("builtin_video_bitrate_allocator_factory") {
     "../../api:scoped_refptr",
     "../../media:rtc_media_base",
     "../../modules/video_coding:video_coding_utility",
-    "../../modules/video_coding:webrtc_vp9_helpers",
+    "../../modules/video_coding/svc:svc_rate_allocator",
     "../video_codecs:video_codecs_api",
   ]
   absl_deps = [ "//third_party/abseil-cpp/absl/base:core_headers" ]

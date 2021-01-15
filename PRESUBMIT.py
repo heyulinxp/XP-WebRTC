@@ -975,7 +975,8 @@ def CommonChecks(input_api, output_api):
             input_api,
             output_api,
             bot_allowlist=[
-                'chromium-webrtc-autoroll@webrtc-ci.iam.gserviceaccount.com'
+                'chromium-webrtc-autoroll@webrtc-ci.iam.gserviceaccount.com',
+                'webrtc-version-updater@webrtc-ci.iam.gserviceaccount.com',
             ]))
     results.extend(
         input_api.canned_checks.CheckChangeTodoHasOwner(
@@ -1121,6 +1122,8 @@ def CheckObjcApiSymbols(input_api, output_api, source_file_filter):
                              source_file_filter(x))
     for f in input_api.AffectedSourceFiles(file_filter):
         if not f.LocalPath().endswith('.h') or not 'sdk/objc' in f.LocalPath():
+            continue
+        if f.LocalPath().endswith('sdk/objc/base/RTCMacros.h'):
             continue
         contents = input_api.ReadFile(f)
         for match in rtc_objc_export.finditer(contents):

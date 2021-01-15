@@ -63,11 +63,6 @@ class VCMDecoderDataBase {
       const VCMEncodedFrame& frame,
       VCMDecodedFrameCallback* decoded_frame_callback);
 
-  // Returns true if the currently active decoder prefer to decode frames late.
-  // That means that frames must be decoded near the render times stamp.
-  //如果当前活动解码器喜欢延迟解码帧，则返回true。这意味着帧必须在渲染时间戳附近解码。
-  bool PrefersLateDecoding() const;
-
  private:
   //保存两个DecoderMapItem的map类型
   typedef std::map<uint8_t, VCMDecoderMapItem*> DecoderMap;

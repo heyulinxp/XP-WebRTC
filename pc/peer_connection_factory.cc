@@ -114,7 +114,8 @@ PeerConnectionFactory::~PeerConnectionFactory() {
 }
 
 void PeerConnectionFactory::SetOptions(const Options& options) {
-  context_->SetOptions(options);
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  options_ = options;
 }
 
 RtpCapabilities PeerConnectionFactory::GetRtpSenderCapabilities(
@@ -140,7 +141,7 @@ RtpCapabilities PeerConnectionFactory::GetRtpSenderCapabilities(
     case cricket::MEDIA_TYPE_UNSUPPORTED:
       return RtpCapabilities();
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 RtpCapabilities PeerConnectionFactory::GetRtpReceiverCapabilities(
@@ -166,7 +167,7 @@ RtpCapabilities PeerConnectionFactory::GetRtpReceiverCapabilities(
     case cricket::MEDIA_TYPE_UNSUPPORTED:
       return RtpCapabilities();
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 rtc::scoped_refptr<AudioSourceInterface>
@@ -205,7 +206,20 @@ rtc::scoped_refptr<PeerConnectionInterface>
 PeerConnectionFactory::CreatePeerConnection(
     const PeerConnectionInterface::RTCConfiguration& configuration,
     PeerConnectionDependencies dependencies) {
-  RTC_DCHECK(signaling_thread()->IsCurrent());
+  auto result =
+      CreatePeerConnectionOrError(configuration, std::move(dependencies));
+  if (result.ok()) {
+    return result.MoveValue();
+  } else {
+    return nullptr;
+  }
+}
+
+RTCErrorOr<rtc::scoped_refptr<PeerConnectionInterface>>
+PeerConnectionFactory::CreatePeerConnectionOrError(
+    const PeerConnectionInterface::RTCConfiguration& configuration,
+    PeerConnectionDependencies dependencies) {
+  RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!(dependencies.allocator && dependencies.packet_socket_factory))
       << "You can't set both allocator and packet_socket_factory; "
          "the former is going away (see bugs.webrtc.org/7447";
@@ -249,13 +263,15 @@ PeerConnectionFactory::CreatePeerConnection(
       RTC_FROM_HERE,
       rtc::Bind(&PeerConnectionFactory::CreateCall_w, this, event_log.get()));
 
-  rtc::scoped_refptr<PeerConnection> pc =
-      PeerConnection::Create(context_, std::move(event_log), std::move(call),
-                             configuration, std::move(dependencies));
-  if (!pc) {
-    return nullptr;
+  auto result = PeerConnection::Create(context_, options_, std::move(event_log),
+                                       std::move(call), configuration,
+                                       std::move(dependencies));
+  if (!result.ok()) {
+    return result.MoveError();
   }
-  return PeerConnectionProxy::Create(signaling_thread(), pc);
+  rtc::scoped_refptr<PeerConnectionInterface> result_proxy =
+      PeerConnectionProxy::Create(signaling_thread(), result.MoveValue());
+  return result_proxy;
 }
 
 rtc::scoped_refptr<MediaStreamInterface>

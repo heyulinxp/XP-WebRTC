@@ -25,6 +25,7 @@
 #include "api/neteq/neteq_factory.h"
 #include "api/network_state_predictor.h"
 #include "api/peer_connection_interface.h"
+#include "api/rtc_error.h"
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/rtc_event_log/rtc_event_log_factory_interface.h"
 #include "api/rtp_parameters.h"
@@ -72,6 +73,11 @@ class PeerConnectionFactory : public PeerConnectionFactoryInterface {
       const PeerConnectionInterface::RTCConfiguration& configuration,
       PeerConnectionDependencies dependencies) override;
 
+  RTCErrorOr<rtc::scoped_refptr<PeerConnectionInterface>>
+  CreatePeerConnectionOrError(
+      const PeerConnectionInterface::RTCConfiguration& configuration,
+      PeerConnectionDependencies dependencies) override;
+
   RtpCapabilities GetRtpSenderCapabilities(
       cricket::MediaType kind) const override;
 
@@ -107,7 +113,10 @@ class PeerConnectionFactory : public PeerConnectionFactoryInterface {
     return context_->signaling_thread();
   }
 
-  const Options& options() const { return context_->options(); }
+  const Options& options() const {
+    RTC_DCHECK_RUN_ON(signaling_thread());
+    return options_;
+  }
 
   const WebRtcKeyValueConfig& trials() const { return context_->trials(); }
 
@@ -136,6 +145,8 @@ class PeerConnectionFactory : public PeerConnectionFactoryInterface {
   std::unique_ptr<Call> CreateCall_w(RtcEventLog* event_log);
 
   rtc::scoped_refptr<ConnectionContext> context_;
+  PeerConnectionFactoryInterface::Options options_
+      RTC_GUARDED_BY(signaling_thread());
   std::unique_ptr<TaskQueueFactory> task_queue_factory_;
   std::unique_ptr<RtcEventLogFactoryInterface> event_log_factory_;
   std::unique_ptr<FecControllerFactoryInterface> fec_controller_factory_;

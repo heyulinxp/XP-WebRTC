@@ -114,7 +114,7 @@ GainControl::Mode Agc1ConfigModeToInterfaceMode(
     case Agc1Config::kFixedDigital:
       return GainControl::kFixedDigital;
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 // Maximum lengths that frame of samples being passed from the render side to
@@ -708,15 +708,18 @@ AudioProcessingImpl::RuntimeSettingEnqueuer::~RuntimeSettingEnqueuer() =
 
 void AudioProcessingImpl::RuntimeSettingEnqueuer::Enqueue(
     RuntimeSetting setting) {
-  size_t remaining_attempts = 10;
+  int remaining_attempts = 10;
   while (!runtime_settings_.Insert(&setting) && remaining_attempts-- > 0) {
     RuntimeSetting setting_to_discard;
-    if (runtime_settings_.Remove(&setting_to_discard))
+    if (runtime_settings_.Remove(&setting_to_discard)) {
       RTC_LOG(LS_ERROR)
           << "The runtime settings queue is full. Oldest setting discarded.";
+    }
   }
-  if (remaining_attempts == 0)
+  if (remaining_attempts == 0) {
+    RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.ApmRuntimeSettingCannotEnqueue", 1);
     RTC_LOG(LS_ERROR) << "Cannot enqueue a new runtime setting.";
+  }
 }
 
 int AudioProcessingImpl::MaybeInitializeCapture(
@@ -1473,8 +1476,8 @@ bool AudioProcessingImpl::GetLinearAecOutput(
       rtc::ArrayView<const float> channel_view =
           rtc::ArrayView<const float>(linear_aec_buffer->channels_const()[ch],
                                       linear_aec_buffer->num_frames());
-      std::copy(channel_view.begin(), channel_view.end(),
-                linear_output[ch].begin());
+      FloatS16ToFloat(channel_view.data(), channel_view.size(),
+                      linear_output[ch].data());
     }
     return true;
   }
@@ -1827,7 +1830,7 @@ void AudioProcessingImpl::InitializeNoiseSuppressor() {
             case NoiseSuppresionConfig::kVeryHigh:
               return NsConfig::SuppressionLevel::k21dB;
           }
-          RTC_CHECK(false);
+          RTC_CHECK_NOTREACHED();
         };
 
     NsConfig cfg;

@@ -10,6 +10,8 @@
 
 #include "video/adaptation/video_stream_encoder_resource_manager.h"
 
+#include <stdio.h>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -29,6 +31,7 @@
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/sequence_checker.h"
 #include "rtc_base/time_utils.h"
+#include "system_wrappers/include/field_trial.h"
 #include "video/adaptation/quality_scaler_resource.h"
 
 namespace webrtc {
@@ -37,6 +40,9 @@ const int kDefaultInputPixelsWidth = 176;
 const int kDefaultInputPixelsHeight = 144;
 
 namespace {
+
+constexpr const char* kPixelLimitResourceFieldTrialName =
+    "WebRTC-PixelLimitResource";
 
 bool IsResolutionScalingEnabled(DegradationPreference degradation_preference) {
   return degradation_preference == DegradationPreference::MAINTAIN_FRAMERATE ||
@@ -55,7 +61,53 @@ std::string ToString(VideoAdaptationReason reason) {
     case VideoAdaptationReason::kCpu:
       return "cpu";
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
+}
+
+absl::optional<uint32_t> GetSingleActiveStreamPixels(const VideoCodec& codec) {
+  int num_active = 0;
+  absl::optional<uint32_t> pixels;
+  if (codec.codecType == VideoCodecType::kVideoCodecVP9) {
+    for (int i = 0; i < codec.VP9().numberOfSpatialLayers; ++i) {
+      if (codec.spatialLayers[i].active) {
+        ++num_active;
+        pixels = codec.spatialLayers[i].width * codec.spatialLayers[i].height;
+      }
+    }
+  } else {
+    for (int i = 0; i < codec.numberOfSimulcastStreams; ++i) {
+      if (codec.simulcastStream[i].active) {
+        ++num_active;
+        pixels =
+            codec.simulcastStream[i].width * codec.simulcastStream[i].height;
+      }
+    }
+  }
+  if (num_active > 1)
+    return absl::nullopt;
+  return pixels;
+}
+
+std::vector<bool> GetActiveLayersFlags(const VideoCodec& codec) {
+  std::vector<bool> flags;
+  if (codec.codecType == VideoCodecType::kVideoCodecVP9) {
+    flags.resize(codec.VP9().numberOfSpatialLayers);
+    for (size_t i = 0; i < flags.size(); ++i) {
+      flags[i] = codec.spatialLayers[i].active;
+    }
+  } else {
+    flags.resize(codec.numberOfSimulcastStreams);
+    for (size_t i = 0; i < flags.size(); ++i) {
+      flags[i] = codec.simulcastStream[i].active;
+    }
+  }
+  return flags;
+}
+
+bool EqualFlags(const std::vector<bool>& a, const std::vector<bool>& b) {
+  if (a.size() != b.size())
+    return false;
+  return std::equal(a.begin(), a.end(), b.begin());
 }
 
 }  // namespace
@@ -69,13 +121,19 @@ class VideoStreamEncoderResourceManager::InitialFrameDropper {
         has_seen_first_bwe_drop_(false),
         set_start_bitrate_(DataRate::Zero()),
         set_start_bitrate_time_ms_(0),
-        initial_framedrop_(0) {
+        initial_framedrop_(0),
+        last_input_width_(0),
+        last_input_height_(0) {
     RTC_DCHECK(quality_scaler_resource_);
   }
 
   // Output signal.
   bool DropInitialFrames() const {
     return initial_framedrop_ < kMaxInitialFramedrop;
+  }
+
+  absl::optional<uint32_t> single_active_stream_pixels() const {
+    return single_active_stream_pixels_;
   }
 
   // Input signals.
@@ -104,9 +162,38 @@ class VideoStreamEncoderResourceManager::InitialFrameDropper {
     }
   }
 
+  void OnEncoderSettingsUpdated(
+      const VideoCodec& codec,
+      const VideoAdaptationCounters& adaptation_counters) {
+    std::vector<bool> active_flags = GetActiveLayersFlags(codec);
+    // Check if the source resolution has changed for the external reasons,
+    // i.e. without any adaptation from WebRTC.
+    const bool source_resolution_changed =
+        (last_input_width_ != codec.width ||
+         last_input_height_ != codec.height) &&
+        adaptation_counters.resolution_adaptations ==
+            last_adaptation_counters_.resolution_adaptations;
+    if (!EqualFlags(active_flags, last_active_flags_) ||
+        source_resolution_changed) {
+      // Streams configuration has changed.
+      // Initial frame drop must be enabled because BWE might be way too low
+      // for the selected resolution.
+      if (quality_scaler_resource_->is_started()) {
+        RTC_LOG(LS_INFO) << "Resetting initial_framedrop_ due to changed "
+                            "stream parameters";
+        initial_framedrop_ = 0;
+      }
+    }
+    last_adaptation_counters_ = adaptation_counters;
+    last_active_flags_ = active_flags;
+    last_input_width_ = codec.width;
+    last_input_height_ = codec.height;
+    single_active_stream_pixels_ = GetSingleActiveStreamPixels(codec);
+  }
+
   void OnFrameDroppedDueToSize() { ++initial_framedrop_; }
 
-  void OnMaybeEncodeFrame() { initial_framedrop_ = kMaxInitialFramedrop; }
+  void Disable() { initial_framedrop_ = kMaxInitialFramedrop; }
 
   void OnQualityScalerSettingsUpdated() {
     if (quality_scaler_resource_->is_started()) {
@@ -130,6 +217,12 @@ class VideoStreamEncoderResourceManager::InitialFrameDropper {
   int64_t set_start_bitrate_time_ms_;
   // Counts how many frames we've dropped in the initial framedrop phase.
   int initial_framedrop_;
+  absl::optional<uint32_t> single_active_stream_pixels_;
+
+  std::vector<bool> last_active_flags_;
+  VideoAdaptationCounters last_adaptation_counters_;
+  int last_input_width_;
+  int last_input_height_;
 };
 
 VideoStreamEncoderResourceManager::VideoStreamEncoderResourceManager(
@@ -146,6 +239,7 @@ VideoStreamEncoderResourceManager::VideoStreamEncoderResourceManager(
       encode_usage_resource_(
           EncodeUsageResource::Create(std::move(overuse_detector))),
       quality_scaler_resource_(QualityScalerResource::Create()),
+      pixel_limit_resource_(nullptr),
       encoder_queue_(nullptr),
       input_state_provider_(input_state_provider),
       adaptation_processor_(nullptr),
@@ -210,6 +304,34 @@ void VideoStreamEncoderResourceManager::EnsureEncodeUsageResourceStarted() {
   encode_usage_resource_->StartCheckForOveruse(GetCpuOveruseOptions());
 }
 
+void VideoStreamEncoderResourceManager::MaybeInitializePixelLimitResource() {
+  RTC_DCHECK_RUN_ON(encoder_queue_);
+  RTC_DCHECK(adaptation_processor_);
+  RTC_DCHECK(!pixel_limit_resource_);
+  if (!field_trial::IsEnabled(kPixelLimitResourceFieldTrialName)) {
+    // The field trial is not running.
+    return;
+  }
+  int max_pixels = 0;
+  std::string pixel_limit_field_trial =
+      field_trial::FindFullName(kPixelLimitResourceFieldTrialName);
+  if (sscanf(pixel_limit_field_trial.c_str(), "Enabled-%d", &max_pixels) != 1) {
+    RTC_LOG(LS_ERROR) << "Couldn't parse " << kPixelLimitResourceFieldTrialName
+                      << " trial config: " << pixel_limit_field_trial;
+    return;
+  }
+  RTC_LOG(LS_INFO) << "Running field trial "
+                   << kPixelLimitResourceFieldTrialName << " configured to "
+                   << max_pixels << " max pixels";
+  // Configure the specified max pixels from the field trial. The pixel limit
+  // resource is active for the lifetme of the stream (until
+  // StopManagedResources() is called).
+  pixel_limit_resource_ =
+      PixelLimitResource::Create(encoder_queue_->Get(), input_state_provider_);
+  pixel_limit_resource_->SetMaxPixels(max_pixels);
+  AddResource(pixel_limit_resource_, VideoAdaptationReason::kCpu);
+}
+
 void VideoStreamEncoderResourceManager::StopManagedResources() {
   RTC_DCHECK_RUN_ON(encoder_queue_);
   RTC_DCHECK(adaptation_processor_);
@@ -221,6 +343,10 @@ void VideoStreamEncoderResourceManager::StopManagedResources() {
     quality_scaler_resource_->StopCheckForOveruse();
     RemoveResource(quality_scaler_resource_);
   }
+  if (pixel_limit_resource_) {
+    RemoveResource(pixel_limit_resource_);
+    pixel_limit_resource_ = nullptr;
+  }
 }
 
 void VideoStreamEncoderResourceManager::AddResource(
@@ -230,7 +356,7 @@ void VideoStreamEncoderResourceManager::AddResource(
   RTC_DCHECK(resource);
   bool inserted;
   std::tie(std::ignore, inserted) = resources_.emplace(resource, reason);
-  RTC_DCHECK(inserted) << "Resurce " << resource->Name()
+  RTC_DCHECK(inserted) << "Resource " << resource->Name()
                        << " already was inserted";
   adaptation_processor_->AddResource(resource);
 }
@@ -259,6 +385,8 @@ void VideoStreamEncoderResourceManager::SetEncoderSettings(
   RTC_DCHECK_RUN_ON(encoder_queue_);
   encoder_settings_ = std::move(encoder_settings);
   bitrate_constraint_->OnEncoderSettingsUpdated(encoder_settings_);
+  initial_frame_dropper_->OnEncoderSettingsUpdated(
+      encoder_settings_->video_codec(), current_adaptation_counters_);
   MaybeUpdateTargetFrameRate();
 }
 
@@ -339,9 +467,15 @@ bool VideoStreamEncoderResourceManager::DropInitialFrames() const {
   return initial_frame_dropper_->DropInitialFrames();
 }
 
+absl::optional<uint32_t>
+VideoStreamEncoderResourceManager::SingleActiveStreamPixels() const {
+  RTC_DCHECK_RUN_ON(encoder_queue_);
+  return initial_frame_dropper_->single_active_stream_pixels();
+}
+
 void VideoStreamEncoderResourceManager::OnMaybeEncodeFrame() {
   RTC_DCHECK_RUN_ON(encoder_queue_);
-  initial_frame_dropper_->OnMaybeEncodeFrame();
+  initial_frame_dropper_->Disable();
   if (quality_rampup_experiment_ && quality_scaler_resource_->is_started()) {
     DataRate bandwidth = encoder_rates_.has_value()
                              ? encoder_rates_->bandwidth_allocation
@@ -457,6 +591,8 @@ void VideoStreamEncoderResourceManager::OnVideoSourceRestrictionsUpdated(
     rtc::scoped_refptr<Resource> reason,
     const VideoSourceRestrictions& unfiltered_restrictions) {
   RTC_DCHECK_RUN_ON(encoder_queue_);
+  current_adaptation_counters_ = adaptation_counters;
+
   // TODO(bugs.webrtc.org/11553) Remove reason parameter and add reset callback.
   if (!reason && adaptation_counters.Total() == 0) {
     // Adaptation was manually reset - clear the per-reason counters too.

@@ -54,6 +54,7 @@ rtc_source_set("callback_list") {
     "callback_list.h",
   ]
   deps = [
+    ":checks",
     ":untyped_function",
     "../api:function_view",
     "system:assume",
@@ -75,6 +76,7 @@ rtc_library("rtc_base_approved") {
     "../api:scoped_refptr",
     "synchronization:mutex",
     "system:arch",
+    "system:no_unique_address",
     "system:rtc_export",
     "system:unused",
     "third_party/base64",
@@ -482,6 +484,7 @@ rtc_source_set("rtc_operations_chain") {
     ":refcount",
     "../api:scoped_refptr",
     "synchronization:sequence_checker",
+    "system:no_unique_address",
   ]
   absl_deps = [ "//third_party/abseil-cpp/absl/types:optional" ]
 }
@@ -585,6 +588,7 @@ rtc_library("weak_ptr") {
     ":refcount",
     "../api:scoped_refptr",
     "synchronization:sequence_checker",
+    "system:no_unique_address",
   ]
 }
 
@@ -659,6 +663,13 @@ rtc_library("rtc_json") {
     # expected to be when building json outside of the standalone build.
     defines += [ "WEBRTC_EXTERNAL_JSON" ]
   }
+}
+
+rtc_source_set("async_resolver") {
+  # TODO(bugs.webrtc.org/9987): This build target will soon contain
+  # async_resolver source files (see
+  # https://webrtc-review.googlesource.com/c/src/+/196903).
+  sources = [ "async_resolver.h" ]
 }
 
 rtc_source_set("net_helpers") {
@@ -833,6 +844,7 @@ rtc_library("rtc_base") {
     "synchronization:sequence_checker",
     "system:file_wrapper",
     "system:inline",
+    "system:no_unique_address",
     "system:rtc_export",
     "task_utils:pending_task_safety_flag",
     "task_utils:repeating_task",
@@ -906,12 +918,10 @@ rtc_library("rtc_base") {
     "openssl.h",
     "openssl_adapter.cc",
     "openssl_adapter.h",
-    "openssl_certificate.cc",
-    "openssl_certificate.h",
     "openssl_digest.cc",
     "openssl_digest.h",
-    "openssl_identity.cc",
-    "openssl_identity.h",
+    "openssl_key_pair.cc",
+    "openssl_key_pair.h",
     "openssl_session_cache.cc",
     "openssl_session_cache.h",
     "openssl_stream_adapter.cc",
@@ -956,6 +966,23 @@ rtc_library("rtc_base") {
     "unique_id_generator.cc",
     "unique_id_generator.h",
   ]
+
+  # If we are building the SSL library ourselves, we know it's BoringSSL.
+  if (rtc_build_ssl) {
+    sources += [
+      "boringssl_certificate.cc",
+      "boringssl_certificate.h",
+      "boringssl_identity.cc",
+      "boringssl_identity.h",
+    ]
+  } else {
+    sources += [
+      "openssl_certificate.cc",
+      "openssl_certificate.h",
+      "openssl_identity.cc",
+      "openssl_identity.h",
+    ]
+  }
 
   if (build_with_chromium) {
     include_dirs = [ "../../boringssl/src/include" ]

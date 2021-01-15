@@ -45,19 +45,6 @@ int GetHigherFrameRateThan(int fps) {
              : std::numeric_limits<int>::max();
 }
 
-// For resolution, the steps we take are 3/5 (down) and 5/3 (up).
-// Notice the asymmetry of which restriction property is set depending on if
-// we are adapting up or down:
-// - VideoSourceRestrictor::DecreaseResolution() sets the max_pixels_per_frame()
-//   to the desired target and target_pixels_per_frame() to null.
-// - VideoSourceRestrictor::IncreaseResolutionTo() sets the
-//   target_pixels_per_frame() to the desired target, and max_pixels_per_frame()
-//   is set according to VideoSourceRestrictor::GetIncreasedMaxPixelsWanted().
-int GetLowerResolutionThan(int pixel_count) {
-  RTC_DCHECK(pixel_count != std::numeric_limits<int>::max());
-  return (pixel_count * 3) / 5;
-}
-
 int GetIncreasedMaxPixelsWanted(int target_pixels) {
   if (target_pixels == std::numeric_limits<int>::max())
     return std::numeric_limits<int>::max();
@@ -139,6 +126,19 @@ VideoSourceRestrictions FilterRestrictionsByDegradationPreference(
   return source_restrictions;
 }
 
+// For resolution, the steps we take are 3/5 (down) and 5/3 (up).
+// Notice the asymmetry of which restriction property is set depending on if
+// we are adapting up or down:
+// - VideoSourceRestrictor::DecreaseResolution() sets the max_pixels_per_frame()
+//   to the desired target and target_pixels_per_frame() to null.
+// - VideoSourceRestrictor::IncreaseResolutionTo() sets the
+//   target_pixels_per_frame() to the desired target, and max_pixels_per_frame()
+//   is set according to VideoSourceRestrictor::GetIncreasedMaxPixelsWanted().
+int GetLowerResolutionThan(int pixel_count) {
+  RTC_DCHECK(pixel_count != std::numeric_limits<int>::max());
+  return (pixel_count * 3) / 5;
+}
+
 // TODO(hbos): Use absl::optional<> instead?
 int GetHigherResolutionThan(int pixel_count) {
   return pixel_count != std::numeric_limits<int>::max()
@@ -162,7 +162,7 @@ const char* Adaptation::StatusToString(Adaptation::Status status) {
     case Status::kRejectedByConstraint:
       return "kRejectedByConstraint";
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 Adaptation::Adaptation(int validation_id,
@@ -382,7 +382,7 @@ VideoStreamAdapter::RestrictionsOrState VideoStreamAdapter::GetAdaptationUpStep(
     case DegradationPreference::DISABLED:
       return Adaptation::Status::kAdaptationDisabled;
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 Adaptation VideoStreamAdapter::GetAdaptationDown() {
@@ -462,7 +462,7 @@ VideoStreamAdapter::GetAdaptationDownStep(
     case DegradationPreference::DISABLED:
       return Adaptation::Status::kAdaptationDisabled;
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 VideoStreamAdapter::RestrictionsOrState VideoStreamAdapter::DecreaseResolution(
@@ -601,7 +601,7 @@ Adaptation VideoStreamAdapter::GetAdaptDownResolution() {
           GetAdaptDownResolutionStepForBalanced(input_state), input_state);
     }
   }
-  RTC_CHECK(false);
+  RTC_CHECK_NOTREACHED();
 }
 
 VideoStreamAdapter::RestrictionsOrState

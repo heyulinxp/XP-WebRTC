@@ -46,6 +46,7 @@
 #include "video/adaptation/bitrate_constraint.h"
 #include "video/adaptation/encode_usage_resource.h"
 #include "video/adaptation/overuse_frame_detector.h"
+#include "video/adaptation/pixel_limit_resource.h"
 #include "video/adaptation/quality_rampup_experiment_helper.h"
 #include "video/adaptation/quality_scaler_resource.h"
 #include "video/adaptation/video_stream_encoder_resource.h"
@@ -92,7 +93,11 @@ class VideoStreamEncoderResourceManager
   DegradationPreference degradation_preference() const;
 
   void EnsureEncodeUsageResourceStarted();
+  // Initializes the pixel limit resource if the "WebRTC-PixelLimitResource"
+  // field trial is enabled. This can be used for testing.
+  void MaybeInitializePixelLimitResource();
   // Stops the encode usage and quality scaler resources if not already stopped.
+  // If the pixel limit resource was created it is also stopped and nulled.
   void StopManagedResources();
 
   // Settings that affect the VideoStreamEncoder-specific resources.
@@ -121,9 +126,10 @@ class VideoStreamEncoderResourceManager
                    VideoAdaptationReason reason);
   void RemoveResource(rtc::scoped_refptr<Resource> resource);
   std::vector<AdaptationConstraint*> AdaptationConstraints() const;
-  // If true, the VideoStreamEncoder should eexecute its logic to maybe drop
-  // frames baseed on size and bitrate.
+  // If true, the VideoStreamEncoder should execute its logic to maybe drop
+  // frames based on size and bitrate.
   bool DropInitialFrames() const;
+  absl::optional<uint32_t> SingleActiveStreamPixels() const;
 
   // VideoSourceRestrictionsListener implementation.
   // Updates |video_source_restrictions_|.
@@ -170,6 +176,7 @@ class VideoStreamEncoderResourceManager
       RTC_GUARDED_BY(encoder_queue_);
   const rtc::scoped_refptr<EncodeUsageResource> encode_usage_resource_;
   const rtc::scoped_refptr<QualityScalerResource> quality_scaler_resource_;
+  rtc::scoped_refptr<PixelLimitResource> pixel_limit_resource_;
 
   rtc::TaskQueue* encoder_queue_;
   VideoStreamInputStateProvider* const input_state_provider_
@@ -181,6 +188,9 @@ class VideoStreamEncoderResourceManager
 
   DegradationPreference degradation_preference_ RTC_GUARDED_BY(encoder_queue_);
   VideoSourceRestrictions video_source_restrictions_
+      RTC_GUARDED_BY(encoder_queue_);
+
+  VideoAdaptationCounters current_adaptation_counters_
       RTC_GUARDED_BY(encoder_queue_);
 
   const BalancedDegradationSettings balanced_settings_;

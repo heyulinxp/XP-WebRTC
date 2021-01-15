@@ -309,8 +309,9 @@ int VideoEncoderWrapper::ParseQp(rtc::ArrayView<const uint8_t> buffer) {
       success = vp9::GetQp(buffer.data(), buffer.size(), &qp);
       break;
     case kVideoCodecH264:
-      h264_bitstream_parser_.ParseBitstream(buffer.data(), buffer.size());
-      success = h264_bitstream_parser_.GetLastSliceQp(&qp);
+      h264_bitstream_parser_.ParseBitstream(buffer);
+      qp = h264_bitstream_parser_.GetLastSliceQp().value_or(-1);
+      success = (qp >= 0);
       break;
     default:  // Default is to not provide QP.
       success = false;
@@ -347,7 +348,6 @@ CodecSpecificInfo VideoEncoderWrapper::ParseCodecSpecificInfo(
           static_cast<uint8_t>(gof_idx_++ % gof_.num_frames_in_gof);
       info.codecSpecific.VP9.num_spatial_layers = 1;
       info.codecSpecific.VP9.first_frame_in_picture = true;
-      info.codecSpecific.VP9.end_of_picture = true;
       info.codecSpecific.VP9.spatial_layer_resolution_present = false;
       if (info.codecSpecific.VP9.ss_data_available) {
         info.codecSpecific.VP9.spatial_layer_resolution_present = true;

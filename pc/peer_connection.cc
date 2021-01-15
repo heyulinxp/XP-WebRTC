@@ -387,8 +387,9 @@ bool PeerConnectionInterface::RTCConfiguration::operator!=(
   return !(*this == o);
 }
 
-rtc::scoped_refptr<PeerConnection> PeerConnection::Create(
+RTCErrorOr<rtc::scoped_refptr<PeerConnection>> PeerConnection::Create(
     rtc::scoped_refptr<ConnectionContext> context,
+    const PeerConnectionFactoryInterface::Options& options,
     std::unique_ptr<RtcEventLog> event_log,
     std::unique_ptr<Call> call,
     const PeerConnectionInterface::RTCConfiguration& configuration,
@@ -396,43 +397,52 @@ rtc::scoped_refptr<PeerConnection> PeerConnection::Create(
   RTCError config_error = cricket::P2PTransportChannel::ValidateIceConfig(
       ParseIceConfig(configuration));
   if (!config_error.ok()) {
-    RTC_LOG(LS_ERROR) << "Invalid configuration: " << config_error.message();
-    return nullptr;
+    RTC_LOG(LS_ERROR) << "Invalid ICE configuration: "
+                      << config_error.message();
+    return config_error;
   }
 
   if (!dependencies.allocator) {
     RTC_LOG(LS_ERROR)
         << "PeerConnection initialized without a PortAllocator? "
            "This shouldn't happen if using PeerConnectionFactory.";
-    return nullptr;
+    return RTCError(
+        RTCErrorType::INVALID_PARAMETER,
+        "Attempt to create a PeerConnection without a PortAllocatorFactory");
   }
 
   if (!dependencies.observer) {
     // TODO(deadbeef): Why do we do this?
     RTC_LOG(LS_ERROR) << "PeerConnection initialized without a "
                          "PeerConnectionObserver";
-    return nullptr;
+    return RTCError(RTCErrorType::INVALID_PARAMETER,
+                    "Attempt to create a PeerConnection without an observer");
   }
 
   bool is_unified_plan =
       configuration.sdp_semantics == SdpSemantics::kUnifiedPlan;
   // The PeerConnection constructor consumes some, but not all, dependencies.
   rtc::scoped_refptr<PeerConnection> pc(
-      new rtc::RefCountedObject<PeerConnection>(context, is_unified_plan,
-                                                std::move(event_log),
-                                                std::move(call), dependencies));
-  if (!pc->Initialize(configuration, std::move(dependencies))) {
-    return nullptr;
+      new rtc::RefCountedObject<PeerConnection>(
+          context, options, is_unified_plan, std::move(event_log),
+          std::move(call), dependencies));
+  RTCError init_error = pc->Initialize(configuration, std::move(dependencies));
+  if (!init_error.ok()) {
+    RTC_LOG(LS_ERROR) << "PeerConnection initialization failed";
+    return init_error;
   }
   return pc;
 }
 
-PeerConnection::PeerConnection(rtc::scoped_refptr<ConnectionContext> context,
-                               bool is_unified_plan,
-                               std::unique_ptr<RtcEventLog> event_log,
-                               std::unique_ptr<Call> call,
-                               PeerConnectionDependencies& dependencies)
+PeerConnection::PeerConnection(
+    rtc::scoped_refptr<ConnectionContext> context,
+    const PeerConnectionFactoryInterface::Options& options,
+    bool is_unified_plan,
+    std::unique_ptr<RtcEventLog> event_log,
+    std::unique_ptr<Call> call,
+    PeerConnectionDependencies& dependencies)
     : context_(context),
+      options_(options),
       observer_(dependencies.observer),
       is_unified_plan_(is_unified_plan),
       event_log_(std::move(event_log)),
@@ -495,7 +505,7 @@ PeerConnection::~PeerConnection() {
   });
 }
 
-bool PeerConnection::Initialize(
+RTCError PeerConnection::Initialize(
     const PeerConnectionInterface::RTCConfiguration& configuration,
     PeerConnectionDependencies dependencies) {
   RTC_DCHECK_RUN_ON(signaling_thread());
@@ -507,7 +517,7 @@ bool PeerConnection::Initialize(
   RTCErrorType parse_error =
       ParseIceServers(configuration.servers, &stun_servers, &turn_servers);
   if (parse_error != RTCErrorType::NONE) {
-    return false;
+    return RTCError(parse_error, "ICE server parse failed");
   }
 
   // Add the turn logging id to all turn servers
@@ -541,8 +551,6 @@ bool PeerConnection::Initialize(
   RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.IPMetrics", address_family,
                             kPeerConnectionAddressFamilyCounter_Max);
 
-  const PeerConnectionFactoryInterface::Options& options = context_->options();
-
   // RFC 3264: The numeric value of the session id and version in the
   // o line MUST be representable with a "64 bit signed integer".
   // Due to this constraint session id |session_id_| is max limited to
@@ -551,15 +559,15 @@ bool PeerConnection::Initialize(
   JsepTransportController::Config config;
   config.redetermine_role_on_ice_restart =
       configuration.redetermine_role_on_ice_restart;
-  config.ssl_max_version = context_->options().ssl_max_version;
-  config.disable_encryption = options.disable_encryption;
+  config.ssl_max_version = options_.ssl_max_version;
+  config.disable_encryption = options_.disable_encryption;
   config.bundle_policy = configuration.bundle_policy;
   config.rtcp_mux_policy = configuration.rtcp_mux_policy;
-  // TODO(bugs.webrtc.org/9891) - Remove options.crypto_options then remove this
-  // stub.
+  // TODO(bugs.webrtc.org/9891) - Remove options_.crypto_options then remove
+  // this stub.
   config.crypto_options = configuration.crypto_options.has_value()
                               ? *configuration.crypto_options
-                              : options.crypto_options;
+                              : options_.crypto_options;
   config.transport_observer = this;
   config.rtcp_handler = InitializeRtcpCallback();
   config.event_log = event_log_ptr_;
@@ -568,7 +576,7 @@ bool PeerConnection::Initialize(
 #endif
   config.active_reset_srtp_params = configuration.active_reset_srtp_params;
 
-  if (options.disable_encryption) {
+  if (options_.disable_encryption) {
     dtls_enabled_ = false;
   } else {
     // Enable DTLS by default if we have an identity store or a certificate.
@@ -587,7 +595,7 @@ bool PeerConnection::Initialize(
     data_channel_controller_.set_data_channel_type(cricket::DCT_RTP);
   } else {
     // DTLS has to be enabled to use SCTP.
-    if (!options.disable_sctp_data_channels && dtls_enabled_) {
+    if (!options_.disable_sctp_data_channels && dtls_enabled_) {
       data_channel_controller_.set_data_channel_type(cricket::DCT_SCTP);
       config.sctp_factory = context_->sctp_transport_factory();
     }
@@ -658,7 +666,7 @@ bool PeerConnection::Initialize(
       },
       delay_ms);
 
-  return true;
+  return RTCError::OK();
 }
 
 rtc::scoped_refptr<StreamCollectionInterface> PeerConnection::local_streams() {
@@ -1844,6 +1852,7 @@ bool PeerConnection::ReconfigurePortAllocator_n(
     webrtc::TurnCustomizer* turn_customizer,
     absl::optional<int> stun_candidate_keepalive_interval,
     bool have_local_description) {
+  RTC_DCHECK_RUN_ON(network_thread());
   port_allocator_->SetCandidateFilter(
       ConvertIceTransportTypeToCandidateFilter(type));
   // According to JSEP, after setLocalDescription, changing the candidate pool
@@ -2405,7 +2414,7 @@ void PeerConnection::ReportBestConnectionState(
                                   GetIceCandidatePairCounter(local, remote),
                                   kIceCandidatePairMax);
       } else {
-        RTC_CHECK(0);
+        RTC_CHECK_NOTREACHED();
       }
 
       // Increment the counter for IP type.
@@ -2527,7 +2536,7 @@ CryptoOptions PeerConnection::GetCryptoOptions() {
   // after it has been removed.
   return configuration_.crypto_options.has_value()
              ? *configuration_.crypto_options
-             : context_->options().crypto_options;
+             : options_.crypto_options;
 }
 
 void PeerConnection::ClearStatsCache() {

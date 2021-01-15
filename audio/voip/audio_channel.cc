@@ -79,6 +79,12 @@ AudioChannel::~AudioChannel() {
   }
 
   audio_mixer_->RemoveSource(ingress_.get());
+
+  // AudioEgress could hold current global TaskQueueBase that we need to clear
+  // before ProcessThread::DeRegisterModule.
+  egress_.reset();
+  ingress_.reset();
+
   process_thread_->DeRegisterModule(rtp_rtcp_.get());
 }
 
@@ -129,29 +135,47 @@ void AudioChannel::StopPlay() {
   }
 }
 
-NetEqLifetimeStatistics AudioChannel::GetNetEqStatistics() {
-  NetEqLifetimeStatistics neteq_stats;
+IngressStatistics AudioChannel::GetIngressStatistics() {
+  IngressStatistics ingress_stats;
   NetworkStatistics stats = ingress_->GetNetworkStatistics();
-  neteq_stats.total_samples_received = stats.totalSamplesReceived;
-  neteq_stats.concealed_samples = stats.concealedSamples;
-  neteq_stats.concealment_events = stats.concealmentEvents;
-  neteq_stats.jitter_buffer_delay_ms = stats.jitterBufferDelayMs;
-  neteq_stats.jitter_buffer_emitted_count = stats.jitterBufferEmittedCount;
-  neteq_stats.jitter_buffer_target_delay_ms = stats.jitterBufferTargetDelayMs;
-  neteq_stats.inserted_samples_for_deceleration =
+  ingress_stats.neteq_stats.total_samples_received = stats.totalSamplesReceived;
+  ingress_stats.neteq_stats.concealed_samples = stats.concealedSamples;
+  ingress_stats.neteq_stats.concealment_events = stats.concealmentEvents;
+  ingress_stats.neteq_stats.jitter_buffer_delay_ms = stats.jitterBufferDelayMs;
+  ingress_stats.neteq_stats.jitter_buffer_emitted_count =
+      stats.jitterBufferEmittedCount;
+  ingress_stats.neteq_stats.jitter_buffer_target_delay_ms =
+      stats.jitterBufferTargetDelayMs;
+  ingress_stats.neteq_stats.inserted_samples_for_deceleration =
       stats.insertedSamplesForDeceleration;
-  neteq_stats.removed_samples_for_acceleration =
+  ingress_stats.neteq_stats.removed_samples_for_acceleration =
       stats.removedSamplesForAcceleration;
-  neteq_stats.silent_concealed_samples = stats.silentConcealedSamples;
-  neteq_stats.fec_packets_received = stats.fecPacketsReceived;
-  neteq_stats.fec_packets_discarded = stats.fecPacketsDiscarded;
-  neteq_stats.delayed_packet_outage_samples = stats.delayedPacketOutageSamples;
-  neteq_stats.relative_packet_arrival_delay_ms =
+  ingress_stats.neteq_stats.silent_concealed_samples =
+      stats.silentConcealedSamples;
+  ingress_stats.neteq_stats.fec_packets_received = stats.fecPacketsReceived;
+  ingress_stats.neteq_stats.fec_packets_discarded = stats.fecPacketsDiscarded;
+  ingress_stats.neteq_stats.delayed_packet_outage_samples =
+      stats.delayedPacketOutageSamples;
+  ingress_stats.neteq_stats.relative_packet_arrival_delay_ms =
       stats.relativePacketArrivalDelayMs;
-  neteq_stats.interruption_count = stats.interruptionCount;
-  neteq_stats.total_interruption_duration_ms =
+  ingress_stats.neteq_stats.interruption_count = stats.interruptionCount;
+  ingress_stats.neteq_stats.total_interruption_duration_ms =
       stats.totalInterruptionDurationMs;
-  return neteq_stats;
+  ingress_stats.total_duration = ingress_->GetOutputTotalDuration();
+  return ingress_stats;
+}
+
+ChannelStatistics AudioChannel::GetChannelStatistics() {
+  ChannelStatistics channel_stat = ingress_->GetChannelStatistics();
+
+  StreamDataCounters rtp_stats, rtx_stats;
+  rtp_rtcp_->GetSendStreamDataCounters(&rtp_stats, &rtx_stats);
+  channel_stat.bytes_sent =
+      rtp_stats.transmitted.payload_bytes + rtx_stats.transmitted.payload_bytes;
+  channel_stat.packets_sent =
+      rtp_stats.transmitted.packets + rtx_stats.transmitted.packets;
+
+  return channel_stat;
 }
 
 }  // namespace webrtc

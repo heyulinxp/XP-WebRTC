@@ -30,7 +30,6 @@
 #include "test/mock_transport.h"
 #include "test/scenario/scenario.h"
 #include "test/time_controller/simulated_time_controller.h"
-#include "video/call_stats.h"
 #include "video/send_delay_stats.h"
 #include "video/send_statistics_proxy.h"
 
@@ -136,8 +135,6 @@ class RtpVideoSenderTestFixture {
             time_controller_.CreateProcessThread("PacerThread"),
             time_controller_.GetTaskQueueFactory(),
             &field_trials_),
-        process_thread_(time_controller_.CreateProcessThread("test_thread")),
-        call_stats_(time_controller_.GetClock(), process_thread_.get()),
         stats_proxy_(time_controller_.GetClock(),
                      config_,
                      VideoEncoderConfig::ContentType::kRealtimeVideo),
@@ -148,7 +145,7 @@ class RtpVideoSenderTestFixture {
     router_ = std::make_unique<RtpVideoSender>(
         time_controller_.GetClock(), suspended_ssrcs, suspended_payload_states,
         config_.rtp, config_.rtcp_report_interval_ms, &transport_,
-        CreateObservers(&call_stats_, &encoder_feedback_, &stats_proxy_,
+        CreateObservers(nullptr, &encoder_feedback_, &stats_proxy_,
                         &stats_proxy_, &stats_proxy_, &stats_proxy_,
                         frame_count_observer, &stats_proxy_, &stats_proxy_,
                         &send_delay_stats_),
@@ -196,13 +193,18 @@ class RtpVideoSenderTestFixture {
   BitrateConstraints bitrate_config_;
   const FieldTrialBasedConfig field_trials_;
   RtpTransportControllerSend transport_controller_;
-  std::unique_ptr<ProcessThread> process_thread_;
-  // TODO(tommi): Use internal::CallStats.
-  CallStats call_stats_;
   SendStatisticsProxy stats_proxy_;
   RateLimiter retransmission_rate_limiter_;
   std::unique_ptr<RtpVideoSender> router_;
 };
+
+BitrateAllocationUpdate CreateBitrateAllocationUpdate(int target_bitrate_bps) {
+  BitrateAllocationUpdate update;
+  update.target_bitrate = DataRate::BitsPerSec(target_bitrate_bps);
+  update.round_trip_time = TimeDelta::Zero();
+  return update;
+}
+
 }  // namespace
 
 TEST(RtpVideoSenderTest, SendOnOneModule) {
@@ -768,26 +770,10 @@ TEST(RtpVideoSenderTest, SupportsStoppingUsingDependencyDescriptor) {
       sent_packets.back().HasExtension<RtpDependencyDescriptorExtension>());
 }
 
-TEST(RtpVideoSenderTest, CanSetZeroBitrateWithOverhead) {
-  test::ScopedFieldTrials trials("WebRTC-SendSideBwe-WithOverhead/Enabled/");
+TEST(RtpVideoSenderTest, CanSetZeroBitrate) {
   RtpVideoSenderTestFixture test({kSsrc1}, {kRtxSsrc1}, kPayloadType, {});
-  BitrateAllocationUpdate update;
-  update.target_bitrate = DataRate::Zero();
-  update.packet_loss_ratio = 0;
-  update.round_trip_time = TimeDelta::Zero();
-
-  test.router()->OnBitrateUpdated(update, /*framerate*/ 0);
-}
-
-TEST(RtpVideoSenderTest, CanSetZeroBitrateWithoutOverhead) {
-  RtpVideoSenderTestFixture test({kSsrc1}, {kRtxSsrc1}, kPayloadType, {});
-
-  BitrateAllocationUpdate update;
-  update.target_bitrate = DataRate::Zero();
-  update.packet_loss_ratio = 0;
-  update.round_trip_time = TimeDelta::Zero();
-
-  test.router()->OnBitrateUpdated(update, /*framerate*/ 0);
+  test.router()->OnBitrateUpdated(CreateBitrateAllocationUpdate(0),
+                                  /*framerate*/ 0);
 }
 
 TEST(RtpVideoSenderTest, SimulcastSenderRegistersFrameTransformers) {
@@ -802,4 +788,41 @@ TEST(RtpVideoSenderTest, SimulcastSenderRegistersFrameTransformers) {
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc1));
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc2));
 }
+
+TEST(RtpVideoSenderTest, OverheadIsSubtractedFromTargetBitrate) {
+  test::ScopedFieldTrials field_trials(
+      "WebRTC-Video-UseFrameRateForOverhead/Enabled/");
+
+  // TODO(jakobi): RTP header size should not be hard coded.
+  constexpr uint32_t kRtpHeaderSizeBytes = 20;
+  constexpr uint32_t kTransportPacketOverheadBytes = 40;
+  constexpr uint32_t kOverheadPerPacketBytes =
+      kRtpHeaderSizeBytes + kTransportPacketOverheadBytes;
+  RtpVideoSenderTestFixture test({kSsrc1}, {kRtxSsrc1}, kPayloadType, {});
+  test.router()->OnTransportOverheadChanged(kTransportPacketOverheadBytes);
+  test.router()->SetActive(true);
+
+  {
+    test.router()->OnBitrateUpdated(CreateBitrateAllocationUpdate(300000),
+                                    /*framerate*/ 15);
+    // 1 packet per frame.
+    EXPECT_EQ(test.router()->GetPayloadBitrateBps(),
+              300000 - kOverheadPerPacketBytes * 8 * 30);
+  }
+  {
+    test.router()->OnBitrateUpdated(CreateBitrateAllocationUpdate(150000),
+                                    /*framerate*/ 15);
+    // 1 packet per frame.
+    EXPECT_EQ(test.router()->GetPayloadBitrateBps(),
+              150000 - kOverheadPerPacketBytes * 8 * 15);
+  }
+  {
+    test.router()->OnBitrateUpdated(CreateBitrateAllocationUpdate(1000000),
+                                    /*framerate*/ 30);
+    // 3 packets per frame.
+    EXPECT_EQ(test.router()->GetPayloadBitrateBps(),
+              1000000 - kOverheadPerPacketBytes * 8 * 30 * 3);
+  }
+}
+
 }  // namespace webrtc

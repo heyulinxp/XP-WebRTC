@@ -251,7 +251,27 @@ void VideoProcessor::ProcessFrame() {
     if (input_frames_.size() == kMaxBufferedInputFrames) {
       input_frames_.erase(input_frames_.begin());
     }
-    input_frames_.emplace(frame_number, input_frame);
+
+    if (config_.reference_width != -1 && config_.reference_height != -1 &&
+        (input_frame.width() != config_.reference_width ||
+         input_frame.height() != config_.reference_height)) {
+      rtc::scoped_refptr<I420Buffer> scaled_buffer = I420Buffer::Create(
+          config_.codec_settings.width, config_.codec_settings.height);
+      scaled_buffer->ScaleFrom(*input_frame.video_frame_buffer()->ToI420());
+
+      VideoFrame scaled_reference_frame = input_frame;
+      scaled_reference_frame.set_video_frame_buffer(scaled_buffer);
+      input_frames_.emplace(frame_number, scaled_reference_frame);
+
+      if (config_.reference_width == config_.codec_settings.width &&
+          config_.reference_height == config_.codec_settings.height) {
+        // Both encoding and comparison uses the same down-scale factor, reuse
+        // it for encoder below.
+        input_frame = scaled_reference_frame;
+      }
+    } else {
+      input_frames_.emplace(frame_number, input_frame);
+    }
   }
   last_inputed_timestamp_ = timestamp;
 
@@ -269,6 +289,14 @@ void VideoProcessor::ProcessFrame() {
   for (size_t i = 0; i < num_simulcast_or_spatial_layers_; ++i) {
     FrameStatistics* frame_stat = stats_->GetFrame(frame_number, i);
     frame_stat->encode_start_ns = encode_start_ns;
+  }
+
+  if (input_frame.width() != config_.codec_settings.width ||
+      input_frame.height() != config_.codec_settings.height) {
+    rtc::scoped_refptr<I420Buffer> scaled_buffer = I420Buffer::Create(
+        config_.codec_settings.width, config_.codec_settings.height);
+    scaled_buffer->ScaleFrom(*input_frame.video_frame_buffer()->ToI420());
+    input_frame.set_video_frame_buffer(scaled_buffer);
   }
 
   // Encode.
@@ -373,13 +401,11 @@ void VideoProcessor::FrameEncoded(
   frame_stat->max_nalu_size_bytes = GetMaxNaluSizeBytes(encoded_image, config_);
   frame_stat->qp = encoded_image.qp_;
 
-  bool end_of_picture = false;
   if (codec_type == kVideoCodecVP9) {
     const CodecSpecificInfoVP9& vp9_info = codec_specific.codecSpecific.VP9;
     frame_stat->inter_layer_predicted = vp9_info.inter_layer_predicted;
     frame_stat->non_ref_for_inter_layer_pred =
         vp9_info.non_ref_for_inter_layer_pred;
-    end_of_picture = vp9_info.end_of_picture;
   } else {
     frame_stat->inter_layer_predicted = false;
     frame_stat->non_ref_for_inter_layer_pred = true;
@@ -397,7 +423,7 @@ void VideoProcessor::FrameEncoded(
   if (config_.decode) {
     DecodeFrame(*encoded_image_for_decode, spatial_idx);
 
-    if (end_of_picture && num_spatial_layers > 1) {
+    if (codec_specific.end_of_picture && num_spatial_layers > 1) {
       // If inter-layer prediction is enabled and upper layer was dropped then
       // base layer should be passed to upper layer decoder. Otherwise decoder
       // won't be able to decode next superframe.

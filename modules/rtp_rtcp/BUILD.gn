@@ -298,6 +298,7 @@ rtc_library("rtp_rtcp") {
     "../../rtc_base/experiments:field_trial_parser",
     "../../rtc_base/synchronization:mutex",
     "../../rtc_base/synchronization:sequence_checker",
+    "../../rtc_base/system:no_unique_address",
     "../../rtc_base/task_utils:pending_task_safety_flag",
     "../../rtc_base/task_utils:repeating_task",
     "../../rtc_base/task_utils:to_queued_task",
@@ -316,6 +317,11 @@ rtc_library("rtp_rtcp") {
     "//third_party/abseil-cpp/absl/types:optional",
     "//third_party/abseil-cpp/absl/types:variant",
   ]
+}
+
+rtc_source_set("rtp_rtcp_legacy") {
+  # TODO(bugs.webrtc.org/11581): The files "source/rtp_rtcp_impl.cc"
+  # and "source/rtp_rtcp_impl.h" should be moved to this target.
 }
 
 rtc_library("rtcp_transceiver") {
@@ -522,6 +528,7 @@ if (rtc_include_tests) {
       ":rtcp_transceiver",
       ":rtp_rtcp",
       ":rtp_rtcp_format",
+      ":rtp_rtcp_legacy",
       "../../api:array_view",
       "../../api:libjingle_peerconnection_api",
       "../../api:mock_frame_encryptor",

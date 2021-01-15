@@ -187,7 +187,7 @@ struct ExperimentalNs {
 // analog_level = apm->recommended_stream_analog_level();
 // has_voice = apm->stream_has_voice();
 //
-// // Repeate render and capture processing for the duration of the call...
+// // Repeat render and capture processing for the duration of the call...
 // // Start a new call...
 // apm->Initialize();
 //
@@ -350,10 +350,10 @@ class RTC_EXPORT AudioProcessing : public rtc::RefCountInterface {
 
       enum LevelEstimator { kRms, kPeak };
       bool enabled = false;
-      struct {
+      struct FixedDigital {
         float gain_db = 0.f;
       } fixed_digital;
-      struct {
+      struct AdaptiveDigital {
         bool enabled = false;
         float vad_probability_attack = 1.f;
         LevelEstimator level_estimator = kRms;
@@ -365,6 +365,9 @@ class RTC_EXPORT AudioProcessing : public rtc::RefCountInterface {
         int gain_applier_adjacent_speech_frames_threshold = 1;
         float max_gain_change_db_per_second = 3.f;
         float max_output_noise_level_dbfs = -50.f;
+        bool sse2_allowed = true;
+        bool avx2_allowed = true;
+        bool neon_allowed = true;
       } adaptive_digital;
     } gain_controller2;
 
@@ -713,7 +716,7 @@ class RTC_EXPORT AudioProcessing : public rtc::RefCountInterface {
   static constexpr int kMaxNativeSampleRateHz =
       kNativeSampleRatesHz[kNumNativeSampleRates - 1];
 
-  static const int kChunkSizeMs = 10;
+  static constexpr int kChunkSizeMs = 10;
 };
 
 class RTC_EXPORT AudioProcessingBuilder {
